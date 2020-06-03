@@ -113,6 +113,6 @@ c:\program files (x86)\windows kits\8.1\include\shared\ntstatus.h(12894): warnin
   c:\program files (x86)\windows kits\8.1\include\um\winnt.h(2266): note: см. предыдущее определение "STATUS_SXS_EARLY_DEACTIVATION"
 c:\program files (x86)\windows kits\8.1\include\shared\ntstatus.h(12903): warning C4005: STATUS_SXS_INVALID_DEACTIVATION: изменение макроопределения
   c:\program files (x86)\windows kits\8.1\include\um\winnt.h(2267): note: см. предыдущее определение "STATUS_SXS_INVALID_DEACTIVATION"
-c:\users\kote\documents\github\rat_winapi\xakep\xakep\source.cpp(142): warning C4390: ";": обнаружен пустой контролируемый оператор; это правильно?
+c:\users\kote\documents\github\rat_winapi\xakep\xakep\source.cpp(140): warning C4390: ";": обнаружен пустой контролируемый оператор; это правильно?
   xakep.vcxproj -> C:\Users\kote\Documents\GitHub\RAT_WINAPI\xakep\Debug\xakep.exe
   xakep.vcxproj -> C:\Users\kote\Documents\GitHub\RAT_WINAPI\xakep\Debug\xakep.pdb (Full PDB)

