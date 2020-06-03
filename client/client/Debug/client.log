@@ -113,9 +113,8 @@ c:\program files (x86)\windows kits\8.1\include\shared\ntstatus.h(12894): warnin
   c:\program files (x86)\windows kits\8.1\include\um\winnt.h(2266): note: см. предыдущее определение "STATUS_SXS_EARLY_DEACTIVATION"
 c:\program files (x86)\windows kits\8.1\include\shared\ntstatus.h(12903): warning C4005: STATUS_SXS_INVALID_DEACTIVATION: изменение макроопределения
   c:\program files (x86)\windows kits\8.1\include\um\winnt.h(2267): note: см. предыдущее определение "STATUS_SXS_INVALID_DEACTIVATION"
-c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(93): warning C4390: ";": обнаружен пустой контролируемый оператор; это правильно?
-c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(161): warning C4473: "printf": передано недостаточно аргументов для строки формата
-  c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(161): note: заполнители и их параметры ожидают переменное число аргументов в количестве 4, но было предоставлено 3
-  c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(161): note: отсутствующий вариативный аргумент "4" требуется для строки форматирования "%s"
+c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(177): warning C4473: "printf": передано недостаточно аргументов для строки формата
+  c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(177): note: заполнители и их параметры ожидают переменное число аргументов в количестве 4, но было предоставлено 3
+  c:\users\kote\documents\github\rat_winapi\client\client\source.cpp(177): note: отсутствующий вариативный аргумент "4" требуется для строки форматирования "%s"
   client.vcxproj -> C:\Users\kote\Documents\GitHub\RAT_WINAPI\client\Debug\client.exe
   client.vcxproj -> C:\Users\kote\Documents\GitHub\RAT_WINAPI\client\Debug\client.pdb (Full PDB)
