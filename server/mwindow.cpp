@@ -4,6 +4,9 @@
 #include "ui_screenshot.h"
 #include "ui_explorer.h"
 
+#include <QFileDialog>
+#include <QInputDialog>
+
 SOCKET MSOCKETS[10000];
 sqlite3* db;
 
@@ -578,7 +581,28 @@ void MWindow::CloseShell()
 
 void MWindow::on_CreateBuild_triggered()
 {
-
+    QString file1Name = QFileDialog::getOpenFileName(this, \
+        tr("Patch Client"), \
+        qApp->applicationDirPath(), \
+        tr("EXE File (*.exe)"));
+    FILE* f = fopen(file1Name.toUtf8(), "r+b");
+    if (f != NULL)
+    {
+        QString InputText = QInputDialog::getText(this,"Введите IP","127.000.000.001");
+        unsigned char ipaddr[16];
+        memcpy(ipaddr, InputText.toUtf8(), 15);
+        fseek(f, 0xFA10, SEEK_SET);
+        if (fwrite(&ipaddr, sizeof(ipaddr), 1, f) == 1)
+        {
+            QMessageBox msgBox;
+            msgBox.setInformativeText("Файл успешно пропатчен!");
+            msgBox.setIcon(QMessageBox::Information);
+            msgBox.setText("Успешно!");
+            msgBox.setStandardButtons(QMessageBox::Ok);
+            msgBox.exec();
+        }
+        fclose(f);
+    }
 }
 
 void MWindow::on_AddPorts_triggered()

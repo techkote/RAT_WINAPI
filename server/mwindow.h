@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QWidget>
 #include <QThread>
+#include <QFile>
 #include "sqlite3.h"
 #include "winsock.h"
 

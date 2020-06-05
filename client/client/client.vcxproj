@@ -138,7 +138,7 @@
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <MinimalRebuild>true</MinimalRebuild>
       <ExceptionHandling>false</ExceptionHandling>
-      <AssemblerOutput>NoListing</AssemblerOutput>
+      <AssemblerOutput>All</AssemblerOutput>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
