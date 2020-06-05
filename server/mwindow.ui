@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MWindow</class>
+ <widget class="QMainWindow" name="MWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>584</width>
+    <height>324</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QTableWidget" name="tableWidget">
+      <column>
+       <property name="text">
+        <string>номер</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>адрес</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>хвид</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>имя</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>ос</string>
+       </property>
+      </column>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>584</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuCreate_Build">
+    <property name="title">
+     <string>Настройки</string>
+    </property>
+    <addaction name="CreateBuild"/>
+    <addaction name="action_3"/>
+   </widget>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>База Данных</string>
+    </property>
+    <addaction name="action_2"/>
+    <addaction name="OpenBD"/>
+    <addaction name="action"/>
+   </widget>
+   <widget class="QMenu" name="menu_2">
+    <property name="title">
+     <string>Клиенты</string>
+    </property>
+    <addaction name="OnlineRecv"/>
+   </widget>
+   <addaction name="menuCreate_Build"/>
+   <addaction name="menu"/>
+   <addaction name="menu_2"/>
+  </widget>
+  <action name="CreateBuild">
+   <property name="text">
+    <string>Создать билд</string>
+   </property>
+  </action>
+  <action name="OpenBD">
+   <property name="text">
+    <string>Редактор</string>
+   </property>
+  </action>
+  <action name="action">
+   <property name="text">
+    <string>Блок</string>
+   </property>
+  </action>
+  <action name="action_2">
+   <property name="text">
+    <string>Задания</string>
+   </property>
+  </action>
+  <action name="action_3">
+   <property name="text">
+    <string>Уведомления</string>
+   </property>
+  </action>
+  <action name="OnlineRecv">
+   <property name="text">
+    <string>Обновить Онлайн</string>
+   </property>
+   <property name="toolTip">
+    <string>Проверка клиентов на онлайн</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

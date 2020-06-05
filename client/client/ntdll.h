@@ -262,3 +262,24 @@ typedef struct _PEBME
     ULONG				MinimumStackCommit; */
 } PEBME, *PPEBME;
 
+typedef NTSTATUS(WINAPI* fRtlGetCompressionWorkSpaceSize)
+(
+	USHORT CompressionFormatAndEngine,
+	PULONG CompressBufferWorkSpaceSize,
+	PULONG CompressFragmentWorkSpaceSize
+	);
+
+typedef NTSTATUS(WINAPI* fRtlCompressBuffer)
+(
+	USHORT CompressionFormatAndEngine,
+	PUCHAR UncompressedBuffer,
+	ULONG  UncompressedBufferSize,
+	PUCHAR CompressedBuffer,
+	ULONG  CompressedBufferSize,
+	ULONG  UncompressedChunkSize,
+	PULONG FinalCompressedSize,
+	PVOID  WorkSpace
+	);
+
+fRtlGetCompressionWorkSpaceSize pRtlGetCompressionWorkSpaceSize = NULL;
+fRtlCompressBuffer pRtlCompressBuffer = NULL;
