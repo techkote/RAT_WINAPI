@@ -60,15 +60,11 @@
      <string>Настройки</string>
     </property>
     <addaction name="CreateBuild"/>
-    <addaction name="action_3"/>
    </widget>
    <widget class="QMenu" name="menu">
     <property name="title">
      <string>База Данных</string>
     </property>
-    <addaction name="action_2"/>
-    <addaction name="OpenBD"/>
-    <addaction name="action"/>
    </widget>
    <widget class="QMenu" name="menu_2">
     <property name="title">
@@ -83,26 +79,6 @@
   <action name="CreateBuild">
    <property name="text">
     <string>Создать билд</string>
-   </property>
-  </action>
-  <action name="OpenBD">
-   <property name="text">
-    <string>Редактор</string>
-   </property>
-  </action>
-  <action name="action">
-   <property name="text">
-    <string>Блок</string>
-   </property>
-  </action>
-  <action name="action_2">
-   <property name="text">
-    <string>Задания</string>
-   </property>
-  </action>
-  <action name="action_3">
-   <property name="text">
-    <string>Уведомления</string>
    </property>
   </action>
   <action name="OnlineRecv">

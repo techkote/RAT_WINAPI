@@ -27,7 +27,7 @@ HEADERS += \
 FORMS += \
     explorer.ui \
     mwindow.ui \
-    screenshot.ui
+    wscreenshot.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

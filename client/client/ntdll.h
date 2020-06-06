@@ -281,5 +281,16 @@ typedef NTSTATUS(WINAPI* fRtlCompressBuffer)
 	PVOID  WorkSpace
 	);
 
+typedef NTSTATUS(NTAPI *fRtlDecompressBuffer)
+(
+	USHORT CompressionFormat,
+	PUCHAR UncompressedBuffer,
+	ULONG  UncompressedBufferSize,
+	PUCHAR CompressedBuffer,
+	ULONG  CompressedBufferSize,
+	PULONG FinalUncompressedSize
+	);
+
 fRtlGetCompressionWorkSpaceSize pRtlGetCompressionWorkSpaceSize = NULL;
 fRtlCompressBuffer pRtlCompressBuffer = NULL;
+fRtlDecompressBuffer pRtlDecompressBuffer = NULL;

