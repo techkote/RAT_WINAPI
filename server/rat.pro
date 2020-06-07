@@ -25,8 +25,8 @@ HEADERS += \
     sqlite3.h
 
 FORMS += \
-    explorer.ui \
     mwindow.ui \
+    wexplorer.ui \
     wscreenshot.ui
 
 # Default rules for deployment.

@@ -66,15 +66,8 @@
      <string>База Данных</string>
     </property>
    </widget>
-   <widget class="QMenu" name="menu_2">
-    <property name="title">
-     <string>Клиенты</string>
-    </property>
-    <addaction name="OnlineRecv"/>
-   </widget>
    <addaction name="menuCreate_Build"/>
    <addaction name="menu"/>
-   <addaction name="menu_2"/>
   </widget>
   <action name="CreateBuild">
    <property name="text">

